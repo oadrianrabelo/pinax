@@ -201,10 +201,9 @@ function Craft() {
 
       <h4>a mesa</h4>
       <p className="sentence">O mural fica <Choice value={p.density} onChange={(v) => setPrefs({ density: v })} options={[['arejado', 'arejado'], ['confortável', 'confortável'], ['compacto', 'compacto']]} sep="," />.</p>
-      <p className="sentence">As folhas vêm {yes('tape', 'com fita adesiva', 'sem fita')}, e os títulos {<Choice value={p.cardFont} onChange={(v) => setPrefs({ cardFont: v })} options={[['display', 'na letra de título'], ['body', 'na letra de texto']]} sep="/" />}.</p>
+      <p className="sentence">Os títulos das entradas ficam {<Choice value={p.cardFont} onChange={(v) => setPrefs({ cardFont: v })} options={[['display', 'na letra de título'], ['body', 'na letra de texto']]} sep="/" />}.</p>
       <p className="sentence">O nome fica {yes('italicTitle', 'em itálico', 'em pé')}; o papel {yes('grain', 'tem grão', 'é liso')}; e tudo se move {yes('motion', 'com vida', 'em silêncio')}.</p>
       <p className="sentence">O oráculo {yes('oracle', 'aparece', 'descansa')} e o astrolábio {yes('astrolabe', 'gira no topo', 'fica guardado')}.</p>
-      <Ruler k="tilt" label="Inclinação das folhas" min={0} max={3} step={0.25} fmt={(v) => (v === 0 ? 'retas' : v + '×')} />
       <Ruler k="radius" label="Cantos" min={0} max={24} step={1} fmt={(v) => v + 'px'} />
       <Ruler k="scale" label="Tamanho da letra" min={0.85} max={1.25} step={0.05} fmt={(v) => Math.round(v * 100) + '%'} />
 
