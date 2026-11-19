@@ -1,0 +1,41 @@
+# Compila o APK de uma versão já publicada e anexa à Release dela.
+# Chamado pelo release.yml, ou à mão (Actions → Android → Run workflow → versão).
+name: Android
+on:
+  workflow_call:
+    inputs:
+      version: { type: string, required: true }
+  workflow_dispatch:
+    inputs:
+      version: { description: 'Versão (ex.: 0.2.0)', type: string, required: true }
+permissions:
+  contents: write
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: 'v${{ inputs.version }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - run: npm ci
+      - name: Compilar APK (SDK e NDK que já vêm no runner)
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
+          echo "SDK: $ANDROID_HOME  NDK: $NDK_HOME"
+          npx tauri android init --ci
+          npx tauri android build --apk --debug --target aarch64 --target armv7
+      - name: Anexar à Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(find src-tauri/gen/android -name '*.apk' | head -n1)
+          echo "APK: $APK"
+          cp "$APK" "Rete_${{ inputs.version }}_android.apk"
+          gh release upload "v${{ inputs.version }}" "Rete_${{ inputs.version }}_android.apk" --clobber
