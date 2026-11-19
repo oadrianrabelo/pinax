@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "vite --host",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview --host"
+    "preview": "vite preview --host",
+    "test": "node --test --experimental-strip-types --no-warnings tests/*.test.ts",
+    "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.45.4",
     "idb": "8.0.0",
     "react": "18.3.1",
     "react-dom": "18.3.1"

@@ -18,6 +18,10 @@ export interface Item {
   notifiedAt?: number
   doneAt?: number
   loading?: boolean
+  // sincronização
+  updatedAt?: number   // relógio do "último a escrever vence"
+  deletedAt?: number   // lápide: apagar também precisa viajar entre aparelhos
+  dirty?: boolean      // mudou aqui e ainda não subiu pra nuvem
 }
 
 // Cada categoria tem um sigilo grego — a inicial da palavra que a define.
@@ -74,22 +78,26 @@ export const host = (url: string) => { try { return new URL(url).hostname.replac
 // ——— Persistência local (IndexedDB) ———
 const db = openDB('kairos', 1, { upgrade: (d) => d.createObjectStore('items', { keyPath: 'id' }) })
 export const store = {
-  all: async () => ((await (await db).getAll('items')) as Item[]).sort((a, b) => b.createdAt - a.createdAt),
+  raw: async () => (await (await db).getAll('items')) as Item[],
+  all: async () => (await store.raw()).filter((i) => !i.deletedAt).sort((a, b) => b.createdAt - a.createdAt),
+  get: async (id: string) => (await (await db).get('items', id)) as Item | undefined,
   put: async (i: Item) => { await (await db).put('items', i) },
-  del: async (id: string) => { await (await db).delete('items', id) },
+  // mudança local: carimba a hora e marca pra subir
+  touch: (i: Item): Item => ({ ...i, updatedAt: Math.max(Date.now(), (i.updatedAt ?? 0) + 1), dirty: true }),
 }
 
 // ——— Lembretes ———
 const at = (d: Date, h: number) => { const x = new Date(d); x.setHours(h, 0, 0, 0); return x }
 const plusDays = (n: number, h = 9) => { const d = new Date(); d.setDate(d.getDate() + n); return at(d, h).getTime() }
 
-export const REMINDERS: { label: string; when: () => number }[] = [
-  { label: 'hoje à noite', when: () => (new Date().getHours() < 19 ? at(new Date(), 20).getTime() : plusDays(1)) },
-  { label: 'amanhã', when: () => plusDays(1) },
-  { label: 'em 2 dias', when: () => plusDays(2) },
-  { label: 'no fim de semana', when: () => { const d = new Date(); const n = (6 - d.getDay() + 7) % 7 || 7; return plusDays(n, 10) } },
-  { label: 'em 1 semana', when: () => plusDays(7) },
-  { label: 'em 1 mês', when: () => plusDays(30) },
+// `h` = hora preferida do dia para lembretes (ajustável no Ateliê)
+export const REMINDERS: { label: string; when: (h: number) => number }[] = [
+  { label: 'hoje à noite', when: (h) => (new Date().getHours() < 19 ? at(new Date(), 20).getTime() : plusDays(1, h)) },
+  { label: 'amanhã', when: (h) => plusDays(1, h) },
+  { label: 'em 2 dias', when: (h) => plusDays(2, h) },
+  { label: 'no fim de semana', when: (h) => { const d = new Date(); const n = (6 - d.getDay() + 7) % 7 || 7; return plusDays(n, Math.max(h, 10)) } },
+  { label: 'em 1 semana', when: (h) => plusDays(7, h) },
+  { label: 'em 1 mês', when: (h) => plusDays(30, h) },
 ]
 
 const rtf = new Intl.RelativeTimeFormat('pt-BR', { numeric: 'auto' })
