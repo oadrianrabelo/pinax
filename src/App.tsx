@@ -8,7 +8,7 @@ import { initSync, scheduleSync, useSync } from './sync'
 import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from './update'
 import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, readClipboard, scheduleReminder, setAutostart } from './native'
 import { Spell, greekNumeral } from './spell'
-import { Choice, Notes, Scripts, Seal, deckle } from './bits'
+import { Choice, Notes, Scripts, Seal } from './bits'
 import Atelier from './Atelier'
 
 type View = 'agora' | 'feitos'
@@ -402,30 +402,22 @@ function art(i: Item): React.CSSProperties {
   return { background: `radial-gradient(120% 90% at ${20 + (h % 60)}% 10%, hsl(${a} 55% 58%), transparent 60%), radial-gradient(100% 100% at 90% 100%, hsl(${b} 45% 38%), hsl(${a} 25% 14%))` }
 }
 
-// ——— Folha: um recorte colado no caderno ———
+// ——— Folha: uma entrada do catálogo ———
 function Leaf({ item: i, n, onClick }: { item: Item; n: number; onClick: () => void }) {
   const k = KINDS[i.kind]
-  const h = hash(i.id)
   const [broken, setBroken] = useState(false)
-  const title = i.loading ? '' : i.title || host(i.url)
-  const style = {
-    '--tilt': `${((h % 7) - 3) * 0.5}deg`,
-    '--tape-rot': `${((h >> 4) % 13) - 6}deg`,
-    '--tape-x': `${30 + ((h >> 8) % 40)}%`,
-  } as React.CSSProperties
   return (
-    <article className={'leaf ' + (isDue(i) ? 'due ' : '') + (i.loading ? 'loading' : '')} style={style} onClick={onClick} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}>
-      <figure className="plate" style={{ clipPath: deckle(i.id), ...art(i) }}>
+    <article className={'leaf ' + (isDue(i) ? 'due ' : '') + (i.loading ? 'loading' : '')} onClick={onClick} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}>
+      <figure className="plate" style={art(i)}>
         {i.image && !broken ? <img src={i.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} /> : <b className="script">{k.sigil}</b>}
         {i.price && <span className="price">{i.price}</span>}
       </figure>
       <div className="caption">
         <p className="leaf-meta"><span className="num">{greekNumeral(n)}</span><span className="script sig" title={k.word}>{k.sigil}</span><span className="mono">{i.site || host(i.url)}</span></p>
-        <h3>{i.loading ? <span className="shimmer">lendo as estrelas…</span> : <><span className="initial">{title.slice(0, 1)}</span>{title.slice(1)}</>}</h3>
-        {i.note && <p className="marg">“{i.note}”</p>}
+        <h3>{i.loading ? <span className="shimmer">lendo as estrelas…</span> : i.title || host(i.url)}</h3>
+        {i.note && <p className="marg">{i.note}</p>}
         {i.remindAt && !i.doneAt && <p className={'when ' + (isDue(i) ? 'now' : '')}>☾ {isDue(i) ? 'chegou a hora' : relative(i.remindAt)}</p>}
       </div>
-      {isDue(i) && <span className="wax-stamp" aria-hidden>☾</span>}
     </article>
   )
 }
@@ -463,7 +455,7 @@ function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hou
     <div className="scrim" onClick={onClose}>
       <aside className="sheet ficha" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={i.title || i.url}>
         <div className="grip" />
-        <figure className="sheet-plate" style={{ clipPath: deckle(i.id + 'f', 1), ...art(i) }}>{i.image ? <img src={i.image} alt="" referrerPolicy="no-referrer" /> : <b className="script">{k.sigil}</b>}</figure>
+        <figure className="sheet-plate" style={art(i)}>{i.image ? <img src={i.image} alt="" referrerPolicy="no-referrer" /> : <b className="script">{k.sigil}</b>}</figure>
         <div className="sheet-body">
           <p className="mono">{i.site || host(i.url)}{i.price && ' · ' + i.price}</p>
           <h2>{i.title || host(i.url)}</h2>

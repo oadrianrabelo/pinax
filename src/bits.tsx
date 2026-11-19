@@ -21,7 +21,7 @@ export function Notes({ body }: { body: string }) {
 export function Seal({ children, small, className, ...rest }: ButtonHTMLAttributes<HTMLButtonElement> & { small?: boolean; children: ReactNode }) {
   const h = hash(String(typeof children === 'string' ? children : 'selo'))
   const pts = Array.from({ length: 14 }, (_, i) => {
-    const a = (i / 14) * Math.PI * 2, r = 46 + ((h >> (i % 24)) & 7) * 0.8
+    const a = (i / 14) * Math.PI * 2, r = 47 + ((h >> (i % 24)) & 3) * 0.6
     return `${50 + Math.cos(a) * r},${50 + Math.sin(a) * r}`
   }).join(' ')
   return (
@@ -49,17 +49,4 @@ export function Choice<T extends string | number | boolean>({ value, options, on
       ))}
     </span>
   )
-}
-
-/** Borda de papel rasgado, sempre a mesma para o mesmo item. */
-export function deckle(seed: string, amp = 1.4) {
-  let h = hash(seed)
-  const rnd = () => { h = Math.imul(h ^ (h >>> 13), 0x5bd1e995) >>> 0; return (h % 1000) / 1000 }
-  const pts: string[] = []
-  const step = 5
-  for (let x = 0; x <= 100; x += step) pts.push(`${x}% ${rnd() * amp}%`)
-  for (let y = step; y <= 100; y += step) pts.push(`${100 - rnd() * amp}% ${y}%`)
-  for (let x = 100 - step; x >= 0; x -= step) pts.push(`${x}% ${100 - rnd() * amp}%`)
-  for (let y = 100 - step; y > 0; y -= step) pts.push(`${rnd() * amp}% ${y}%`)
-  return `polygon(${pts.join(',')})`
 }

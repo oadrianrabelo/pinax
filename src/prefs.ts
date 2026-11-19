@@ -174,13 +174,26 @@ export const PALETTES: Record<string, Palette> = {
 
 // ——— Alfabetos do feitiço (a animação das letras) ———
 const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => String.fromCodePoint(from + i))
-export const SCRIPTS: Record<string, { label: string; glyphs: string[]; font: string }> = {
-  grego:    { label: 'grego',    glyphs: [...'αβγδεζηθικλμνξοπρστυφχψωΓΔΘΛΞΠΣΦΨΩ'], font: 'gfs-didot' },
-  fenicio:  { label: 'fenício',  glyphs: range(0x10900, 0x10915), font: 'noto-sans-phoenician' },
-  hebraico: { label: 'hebraico', glyphs: [...'אבגדהוזחטיכלמנסעפצקרשת'], font: 'frank-ruhl-libre' },
-  aramaico: { label: 'aramaico', glyphs: range(0x10840, 0x10855), font: 'noto-sans-imperial-aramaic' },
-  arabe:    { label: 'árabe',    glyphs: [...'ابتثجحخدذرزسشصضطظعغفقكلمنهوي'], font: 'amiri' },
-  latim:    { label: 'latim',    glyphs: [...'ABCDEFGHIKLMNOPQRSTVXYZ'], font: 'cinzel' },
+export type ScriptKind = 'grego' | 'semitico' | 'latim'
+export const SCRIPTS: Record<string, { label: string; glyphs: string[]; font: string; kind: ScriptKind }> = {
+  grego:    { label: 'grego',    kind: 'grego',    glyphs: [...'αβγδεζηθικλμνξοπρστυφχψω'], font: 'gfs-didot' },
+  fenicio:  { label: 'fenício',  kind: 'semitico', glyphs: range(0x10900, 0x10915), font: 'noto-sans-phoenician' },
+  hebraico: { label: 'hebraico', kind: 'semitico', glyphs: [...'אבגדהוזחטיכלמנסעפצקרשת'], font: 'frank-ruhl-libre' },
+  aramaico: { label: 'aramaico', kind: 'semitico', glyphs: range(0x10840, 0x10855), font: 'noto-sans-imperial-aramaic' },
+  arabe:    { label: 'árabe',    kind: 'semitico', glyphs: [...'ابجدهوزحطيكلمنسعفصقرشت'], font: 'amiri' },
+  latim:    { label: 'latim',    kind: 'latim',    glyphs: [...'ABCDEFGHIKLMNOPQRSTVX'], font: 'cinzel' },
+}
+
+// Cada letra latina tem uma irmã nos alfabetos antigos. Os semíticos (fenício, hebraico,
+// aramaico, árabe abjad) seguem a mesma ordem de 22 letras: alef, bet, gimel, dalet…
+const GREGO: Record<string, string> = { a: 'α', b: 'β', c: 'κ', d: 'δ', e: 'ε', f: 'φ', g: 'γ', h: 'η', i: 'ι', j: 'ι', k: 'κ', l: 'λ', m: 'μ', n: 'ν', o: 'ο', p: 'π', q: 'κ', r: 'ρ', s: 'σ', t: 'τ', u: 'υ', v: 'β', w: 'ω', x: 'ξ', y: 'υ', z: 'ζ' }
+const SEMITA: Record<string, number> = { a: 0, b: 1, c: 2, g: 2, d: 3, e: 4, f: 5, u: 5, v: 5, w: 5, z: 6, h: 7, i: 9, j: 9, y: 9, k: 10, l: 11, m: 12, n: 13, x: 14, o: 15, p: 16, q: 18, r: 19, s: 20, t: 21 }
+export function counterpart(ch: string, script: { glyphs: string[]; kind: ScriptKind }) {
+  const base = ch.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+  if (!/[a-z]/.test(base)) return ch
+  if (script.kind === 'grego') { const g = GREGO[base]; return ch !== ch.toLowerCase() ? g.toUpperCase() : g }
+  if (script.kind === 'semitico') return script.glyphs[SEMITA[base]] ?? ch
+  return base.toUpperCase()
 }
 
 // ——— Eras: a linha do tempo de temas ———
@@ -188,7 +201,7 @@ export interface Era {
   name: string; year: string; place: string; story: string
   palette: string; display: string; body: string; mono: string; sigil: string
   script: keyof typeof SCRIPTS
-  radius?: number; tilt?: number; grain?: boolean; italicTitle?: boolean; cardFont?: 'display' | 'body'; tape?: boolean
+  radius?: number; grain?: boolean; italicTitle?: boolean; cardFont?: 'display' | 'body'
 }
 export const ERAS: Record<string, Era> = {
   biblos:      { name: 'Biblos', year: 'c. 1000 a.C.', place: 'Fenícia', story: 'Onde nasceu o alfabeto: 22 letras que viraram o grego, o hebraico, o aramaico e o latim.', palette: 'biblos', display: 'marcellus', body: 'gentium-book-plus', mono: 'red-hat-mono', sigil: 'gentium-book-plus', script: 'fenicio', italicTitle: false },
@@ -196,16 +209,16 @@ export const ERAS: Record<string, Era> = {
   alexandria:  { name: 'Alexandria', year: 'c. 250 a.C.', place: 'Egito', story: 'Meio milhão de rolos de papiro. Todo navio que atracava tinha seus livros copiados.', palette: 'alexandria', display: 'cormorant-unicase', body: 'gentium-book-plus', mono: 'courier-prime', sigil: 'gentium-book-plus', script: 'grego', italicTitle: false, radius: 2 },
   yerushalayim:{ name: 'Yerushalayim', year: 'c. 20 a.C.', place: 'Judeia', story: 'Pedra dourada, lápis-lazúli e rolos copiados letra por letra. O hebraico quadrado veio do aramaico.', palette: 'jerusalem', display: 'bellefair', body: 'frank-ruhl-libre', mono: 'red-hat-mono', sigil: 'gfs-didot', script: 'hebraico', italicTitle: false },
   pompeia:     { name: 'Pompeia', year: '79 d.C.', place: 'Campânia', story: 'Paredes vermelhas de cinábrio, grafites de amor e propaganda — congelados numa tarde.', palette: 'pompeia', display: 'rozha-one', body: 'spectral', mono: 'courier-prime', sigil: 'noto-serif-display', script: 'latim', italicTitle: false },
-  roma:        { name: 'Roma', year: '113 d.C.', place: 'Fórum de Trajano', story: 'As letras da base da Coluna de Trajano ainda são o modelo das maiúsculas do mundo.', palette: 'marmore', display: 'cinzel', body: 'spectral', mono: 'martian-mono', sigil: 'noto-serif-display', script: 'latim', italicTitle: false, radius: 2, tape: false },
+  roma:        { name: 'Roma', year: '113 d.C.', place: 'Fórum de Trajano', story: 'As letras da base da Coluna de Trajano ainda são o modelo das maiúsculas do mundo.', palette: 'marmore', display: 'cinzel', body: 'spectral', mono: 'martian-mono', sigil: 'noto-serif-display', script: 'latim', italicTitle: false, radius: 2 },
   bizancio:    { name: 'Bizâncio', year: '537', place: 'Constantinopla', story: 'Santa Sofia: uma cúpula que parecia flutuar sobre um anel de luz e ouro.', palette: 'bizancio', display: 'cinzel-decorative', body: 'eb-garamond', mono: 'red-hat-mono', sigil: 'gfs-neohellenic', script: 'grego', italicTitle: false },
   bagda:       { name: 'Bagdá', year: '830', place: 'Bayt al-Hikma', story: 'Na Casa da Sabedoria traduziam os gregos e aperfeiçoavam o astrolábio.', palette: 'bagda', display: 'reem-kufi', body: 'amiri', mono: 'spline-sans-mono', sigil: 'piazzolla', script: 'arabe', italicTitle: false },
   scriptorium: { name: 'Scriptorium', year: 'c. 1150', place: 'Abadia', story: 'Monges, velino e vermelhão. A primeira letra de cada capítulo era uma pequena pintura.', palette: 'pergaminho', display: 'im-fell-english', body: 'eb-garamond', mono: 'courier-prime', sigil: 'eb-garamond', script: 'grego', radius: 4 },
   mainz:       { name: 'Mainz', year: '1455', place: 'Oficina de Gutenberg', story: 'Tipos móveis, tinta a óleo e 180 Bíblias. As iniciais ainda eram pintadas à mão.', palette: 'mainz', display: 'unifrakturmaguntia', body: 'im-fell-english', mono: 'azeret-mono', sigil: 'gfs-neohellenic', script: 'latim', italicTitle: false, radius: 2, cardFont: 'body' },
   florenca:    { name: 'Florença', year: '1480', place: 'Bottega', story: 'Têmpera de ovo, terra de Siena e a perspectiva recém-inventada.', palette: 'toscana', display: 'italiana', body: 'petrona', mono: 'spline-sans-mono', sigil: 'piazzolla', script: 'latim', italicTitle: false },
-  parma:       { name: 'Parma', year: '1818', place: 'Stamperia Bodoni', story: 'O Manuale Tipografico: 142 alfabetos romanos, preto e vermelho, contraste extremo.', palette: 'bodoni', display: 'bodoni-moda', body: 'sorts-mill-goudy', mono: 'xanh-mono', sigil: 'noto-serif-display', script: 'latim', radius: 0, tilt: 0, tape: false },
-  concreto:    { name: 'Concreto', year: '1968', place: 'Brutalismo', story: 'Concreto aparente, grids rígidos e um verde de canteiro de obras.', palette: 'brutal', display: 'unbounded', body: 'bricolage-grotesque', mono: 'fragment-mono', sigil: 'syne', script: 'latim', italicTitle: false, radius: 0, tilt: 0, grain: false, cardFont: 'body', tape: false },
+  parma:       { name: 'Parma', year: '1818', place: 'Stamperia Bodoni', story: 'O Manuale Tipografico: 142 alfabetos romanos, preto e vermelho, contraste extremo.', palette: 'bodoni', display: 'bodoni-moda', body: 'sorts-mill-goudy', mono: 'xanh-mono', sigil: 'noto-serif-display', script: 'latim', radius: 0 },
+  concreto:    { name: 'Concreto', year: '1968', place: 'Brutalismo', story: 'Concreto aparente, grids rígidos e um verde de canteiro de obras.', palette: 'brutal', display: 'unbounded', body: 'bricolage-grotesque', mono: 'fragment-mono', sigil: 'syne', script: 'latim', italicTitle: false, radius: 0, grain: false, cardFont: 'body' },
   neon:        { name: 'Neon', year: '1984', place: 'Letreiros', story: 'Gás, vidro curvado à mão e uma cidade que não dorme.', palette: 'neon', display: 'monoton', body: 'darker-grotesque', mono: 'major-mono-display', sigil: 'advent-pro', script: 'grego', italicTitle: false, cardFont: 'body' },
-  caderno:     { name: 'Caderno', year: 'hoje', place: 'Sua mesa', story: 'Pauta azul, caneta BIC e a letra de quem anota rápido.', palette: 'caderno', display: 'homemade-apple', body: 'kalam', mono: 'courier-prime', sigil: 'comfortaa', script: 'latim', italicTitle: false, tilt: 2, cardFont: 'body' },
+  caderno:     { name: 'Caderno', year: 'hoje', place: 'Sua mesa', story: 'Pauta azul, caneta BIC e a letra de quem anota rápido.', palette: 'caderno', display: 'homemade-apple', body: 'kalam', mono: 'courier-prime', sigil: 'comfortaa', script: 'latim', italicTitle: false, cardFont: 'body' },
   abismo:      { name: 'Abismo', year: 'amanhã', place: 'Fossa das Marianas', story: 'Onde a única luz é a que os próprios bichos fazem.', palette: 'abismo', display: 'gloock', body: 'atkinson-hyperlegible', mono: 'victor-mono', sigil: 'victor-mono', script: 'grego' },
 }
 
@@ -225,7 +238,6 @@ export interface Prefs {
   astrolabe: boolean
   italicTitle: boolean
   cardFont: 'display' | 'body'
-  tape: boolean
   reminderHour: number
   title: string
   subtitle: string
@@ -235,14 +247,19 @@ export interface Prefs {
 export const DEFAULTS: Prefs = {
   era: 'delfos', palette: 'delfos', accent: null,
   display: 'instrument-serif', body: 'alegreya', mono: 'xanh-mono', sigil: 'gfs-didot', script: 'era',
-  scale: 1, tilt: 1, density: 'confortável', radius: 3,
-  grain: true, motion: true, oracle: true, astrolabe: true, italicTitle: true, cardFont: 'display', tape: true,
+  scale: 1, tilt: 0, density: 'confortável', radius: 4,
+  grain: true, motion: true, oracle: true, astrolabe: true, italicTitle: true, cardFont: 'display',
   reminderHour: 9, title: 'Rete', subtitle: 'a rede de estrelas do ἀστρολάβος', updatedAt: 0,
 }
 
 const KEY = 'rete:prefs'
 let current: Prefs = (() => {
-  try { return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(KEY) ?? '{}') } } catch { return DEFAULTS }
+  try {
+    const saved = JSON.parse(localStorage.getItem(KEY) ?? '{}')
+    if (saved.tilt && !saved.straightened) { saved.tilt = 0; saved.straightened = true }
+    delete saved.tape
+    return { ...DEFAULTS, ...saved }
+  } catch { return DEFAULTS }
 })()
 const subs = new Set<() => void>()
 
@@ -261,8 +278,8 @@ export function applyEra(id: string) {
   const e = ERAS[id]
   setPrefs({
     era: id, palette: e.palette, accent: null, display: e.display, body: e.body, mono: e.mono, sigil: e.sigil,
-    radius: e.radius ?? DEFAULTS.radius, tilt: e.tilt ?? DEFAULTS.tilt, grain: e.grain ?? DEFAULTS.grain,
-    italicTitle: e.italicTitle ?? DEFAULTS.italicTitle, cardFont: e.cardFont ?? DEFAULTS.cardFont, tape: e.tape ?? DEFAULTS.tape,
+    radius: e.radius ?? DEFAULTS.radius, grain: e.grain ?? DEFAULTS.grain,
+    italicTitle: e.italicTitle ?? DEFAULTS.italicTitle, cardFont: e.cardFont ?? DEFAULTS.cardFont,
   })
 }
 
@@ -273,7 +290,7 @@ export function surprise() {
     era: 'acaso', palette: pick(Object.keys(PALETTES)), accent: null,
     display: pick(of('display')), body: pick(of('body')), mono: pick(of('mono')), sigil: pick(of('sigil')),
     script: pick(Object.keys(SCRIPTS)), italicTitle: Math.random() < 0.5, cardFont: pick(['display', 'body'] as const),
-    tilt: pick([0, 1, 1.5, 2]), radius: pick([0, 3, 8, 14]), tape: Math.random() < 0.6,
+    radius: pick([0, 4, 8, 14]),
   })
 }
 
@@ -292,7 +309,6 @@ export function apply(p: Prefs) {
     '--glow-1': pal.glow[0], '--glow-2': pal.glow[1], '--glow-3': pal.glow[2], '--pattern': pal.pattern ?? 'none',
     '--shadow': pal.dark ? 'rgba(0,0,0,.6)' : 'rgba(70,50,25,.2)',
     '--tilt-k': String(p.tilt), '--radius': p.radius + 'px', '--title-style': p.italicTitle ? 'italic' : 'normal',
-    '--tape': p.tape ? '1' : '0',
     '--col': { arejado: '300px', 'confortável': '240px', compacto: '180px' }[p.density],
     '--gap': { arejado: '36px', 'confortável': '26px', compacto: '14px' }[p.density],
   }
