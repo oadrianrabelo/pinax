@@ -29,6 +29,12 @@ jobs:
         with: { fetch-depth: 0 }
       - uses: actions/setup-node@v4
         with: { node-version: 22 }
+      - name: Marco inicial v0.1.0 (só na primeira vez, para a contagem seguir em 0.x)
+        run: |
+          if [ -z "$(git tag -l 'v*')" ]; then
+            git tag v0.1.0 "$(git rev-list --max-parents=0 HEAD | tail -n1)"
+            git push origin v0.1.0
+          fi
       - id: sr
         uses: cycjimmy/semantic-release-action@v4
         with:
