@@ -1,4 +1,5 @@
 import { openDB } from 'idb'
+import { fetchPreview } from './native'
 
 export type Kind = 'compra' | 'leitura' | 'video' | 'colecao' | 'outro'
 
@@ -24,13 +25,13 @@ export interface Item {
   dirty?: boolean      // mudou aqui e ainda não subiu pra nuvem
 }
 
-// Cada categoria tem um sigilo grego — a inicial da palavra que a define.
-export const KINDS: Record<Kind, { sigil: string; label: string; word: string; meaning: string }> = {
-  compra:  { sigil: 'χ', label: 'Desejos',  word: 'χρῆμα',   meaning: 'coisa útil, um bem' },
-  leitura: { sigil: 'λ', label: 'Leituras', word: 'λόγος',   meaning: 'palavra, razão' },
-  video:   { sigil: 'θ', label: 'Visões',   word: 'θέα',     meaning: 'visão, espetáculo (raiz de “teatro”)' },
-  colecao: { sigil: 'σ', label: 'Coleções', word: 'συλλογή', meaning: 'reunião, coleta' },
-  outro:   { sigil: 'ξ', label: 'Outros',   word: 'ξένος',   meaning: 'o estrangeiro, o diferente' },
+// Cada categoria é uma constelação, com o sigilo grego da palavra que a define.
+export const KINDS: Record<Kind, { sigil: string; label: string; one: string; word: string; meaning: string }> = {
+  compra:  { sigil: 'χ', label: 'Desejos',  one: 'um desejo',     word: 'χρῆμα',   meaning: 'coisa útil, um bem' },
+  leitura: { sigil: 'λ', label: 'Leituras', one: 'uma leitura',   word: 'λόγος',   meaning: 'palavra, razão' },
+  video:   { sigil: 'θ', label: 'Visões',   one: 'uma visão',     word: 'θέα',     meaning: 'visão, espetáculo (raiz de “teatro”)' },
+  colecao: { sigil: 'σ', label: 'Coleções', one: 'uma coleção',   word: 'συλλογή', meaning: 'reunião, coleta' },
+  outro:   { sigil: 'ξ', label: 'Outros',   one: 'outra coisa',   word: 'ξένος',   meaning: 'o estrangeiro, o diferente' },
 }
 
 const RULES: [Kind, RegExp][] = [
@@ -76,7 +77,7 @@ export function canon(url: string) {
 export const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
 
 // ——— Persistência local (IndexedDB) ———
-const db = openDB('kairos', 1, { upgrade: (d) => d.createObjectStore('items', { keyPath: 'id' }) })
+const db = openDB('rete', 1, { upgrade: (d) => d.createObjectStore('items', { keyPath: 'id' }) })
 export const store = {
   raw: async () => (await (await db).getAll('items')) as Item[],
   all: async () => (await store.raw()).filter((i) => !i.deletedAt).sort((a, b) => b.createdAt - a.createdAt),
@@ -118,15 +119,15 @@ export function downloadIcs(i: Item) {
   const esc = (s: string) => s.replace(/[\\,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n')
   const title = `${KINDS[i.kind].sigil} ${i.title || host(i.url)}`
   const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Kairos//PT-BR', 'BEGIN:VEVENT',
-    `UID:${i.id}@kairos`, `DTSTAMP:${f(Date.now())}`, `DTSTART:${f(t)}`, `DTEND:${f(t + 15 * 6e4)}`,
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rete//PT-BR', 'BEGIN:VEVENT',
+    `UID:${i.id}@rete`, `DTSTAMP:${f(Date.now())}`, `DTSTART:${f(t)}`, `DTEND:${f(t + 15 * 6e4)}`,
     `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc((i.note ? i.note + '\n\n' : '') + i.url)}`, `URL:${i.url}`,
     'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(title)}`, 'TRIGGER:PT0M', 'END:VALARM',
     'END:VEVENT', 'END:VCALENDAR',
   ].join('\r\n')
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }))
-  a.download = 'kairos-lembrete.ics'
+  a.download = 'rete-lembrete.ics'
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }
@@ -134,18 +135,14 @@ export function downloadIcs(i: Item) {
 // ——— Prévia (thumbnail, título, preço) ———
 export async function loadPreview(url: string): Promise<Partial<Item> & { type?: string }> {
   const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/)?.[1]
-  let data: any = {}
-  try {
-    const r = await fetch('/api/preview?url=' + encodeURIComponent(url))
-    if (r.ok) data = await r.json()
-  } catch {}
+  let data: any = (await fetchPreview(url)) ?? {}
   if (!data.title || !data.image) {
     try {
       const r = await fetch('https://api.microlink.io/?url=' + encodeURIComponent(url))
       const j = (await r.json()).data ?? {}
       data = {
         title: data.title || j.title, description: data.description || j.description,
-        image: data.image || j.image?.url || j.screenshot?.url, site: data.site || j.publisher,
+        image: data.image || j.image?.url, site: data.site || j.publisher,
         favicon: data.favicon || j.logo?.url, price: data.price, type: data.type,
       }
     } catch {}

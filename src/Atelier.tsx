@@ -1,17 +1,19 @@
 import { useEffect, useState } from 'react'
 import { FONTS, fontById, loadFont, stack, type Cat, type Role } from './fonts'
-import { DEFAULTS, PALETTES, PRESETS, applyPreset, setPrefs, surprise, usePrefs } from './prefs'
+import { DEFAULTS, ERAS, PALETTES, SCRIPTS, activeScript, applyEra, setPrefs, surprise, usePrefs, type Prefs } from './prefs'
 import { signInEmail, signInGoogle, signOut, syncNow, useSync } from './sync'
-import { VERSION, applyUpdate, checkForUpdate, releases, useUpdateReady } from './update'
+import { VERSION, applyUpdate, checkForUpdate, releases, useUpdate } from './update'
 import { relative, type Item } from './model'
-import { Notes, Scripts } from './bits'
+import { getAutostart, isDesktopApp, isNative, setAutostart } from './native'
+import { Choice, Notes, Scripts, Seal } from './bits'
+import { Spell } from './spell'
 
-type Tab = 'temas' | 'fontes' | 'cores' | 'detalhes' | 'conta' | 'sobre'
-const TABS: [Tab, string][] = [['temas', 'Temas'], ['fontes', 'Fontes'], ['cores', 'Cores'], ['detalhes', 'Detalhes'], ['conta', 'Conta'], ['sobre', 'Sobre']]
+type Tab = 'eras' | 'letras' | 'pigmentos' | 'oficio' | 'conta' | 'sobre'
+const TABS: [Tab, string, string][] = [['eras', 'I', 'Eras'], ['letras', 'II', 'Letras'], ['pigmentos', 'III', 'Pigmentos'], ['oficio', 'IV', 'Ofício'], ['conta', 'V', 'Conta'], ['sobre', 'VI', 'Sobre']]
 
 export default function Atelier({ items, onClose, onImport }: { items: Item[]; onClose: () => void; onImport: (xs: Item[]) => void }) {
-  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('kairos:tab') as Tab) || 'temas' } catch { return 'temas' } })
-  useEffect(() => { try { localStorage.setItem('kairos:tab', tab) } catch {} }, [tab])
+  const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('rete:tab') as Tab) || 'eras' } catch { return 'eras' } })
+  useEffect(() => { try { localStorage.setItem('rete:tab', tab) } catch {} }, [tab])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   return (
     <div className="scrim" onClick={onClose}>
@@ -19,19 +21,21 @@ export default function Atelier({ items, onClose, onImport }: { items: Item[]; o
         <div className="grip" />
         <header className="atelier-head">
           <div>
-            <p className="eyebrow">ateliê</p>
-            <h2>Deixe do seu jeito</h2>
+            <p className="eyebrow">o ateliê</p>
+            <Spell as="h2" text="Deixe do seu jeito" speed={0.6} />
           </div>
-          <button className="btn ghost" onClick={onClose} aria-label="Fechar">✕</button>
+          <button className="ink close" onClick={onClose} aria-label="Fechar">fechar ✕</button>
         </header>
-        <nav className="tabs">
-          {TABS.map(([id, label]) => <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}>{label}</button>)}
+        <nav className="bookmarks">
+          {TABS.map(([id, roman, label]) => (
+            <button key={id} className={tab === id ? 'on' : ''} onClick={() => setTab(id)}><i>{roman}</i>{label}</button>
+          ))}
         </nav>
         <div className="atelier-body">
-          {tab === 'temas' && <Themes />}
-          {tab === 'fontes' && <Fonts />}
-          {tab === 'cores' && <Colors />}
-          {tab === 'detalhes' && <Details />}
+          {tab === 'eras' && <Eras />}
+          {tab === 'letras' && <Letters />}
+          {tab === 'pigmentos' && <Pigments />}
+          {tab === 'oficio' && <Craft />}
           {tab === 'conta' && <Account />}
           {tab === 'sobre' && <About items={items} onImport={onImport} />}
         </div>
@@ -40,147 +44,177 @@ export default function Atelier({ items, onClose, onImport }: { items: Item[]; o
   )
 }
 
-function Themes() {
+function Eras() {
   const p = usePrefs()
-  useEffect(() => { for (const t of Object.values(PRESETS)) { loadFont(fontById(t.display), t.name); loadFont(fontById(t.body), t.motto); loadFont(fontById(t.sigil), 'χλθσξ') } }, [])
+  const ids = Object.keys(ERAS)
+  const [focus, setFocus] = useState(ERAS[p.era] ? p.era : 'delfos')
+  const e = ERAS[focus]
+  useEffect(() => { for (const x of Object.values(ERAS)) loadFont(fontById(x.display), x.name + x.year) }, [])
+  useEffect(() => { loadFont(fontById(e.body)); loadFont(fontById(e.sigil)); loadFont(fontById(SCRIPTS[e.script].font)) }, [e])
+  const pal = PALETTES[e.palette]
   return (
     <>
-      <p className="hint">Cada tema é uma combinação de fontes e cores com uma história. Depois, ajuste o que quiser nas outras abas.</p>
-      <div className="themes">
-        {Object.entries(PRESETS).map(([id, t]) => {
-          const pal = PALETTES[t.palette]
+      <p className="aside">Atravesse a história. Cada era traz as letras, os pigmentos e o alfabeto do seu tempo.</p>
+      <div className="timeline" role="listbox" aria-label="Linha do tempo">
+        <div className="axis" />
+        {ids.map((id) => {
+          const x = ERAS[id], c = PALETTES[x.palette]
           return (
-            <button key={id} className={'theme ' + (p.preset === id ? 'on' : '')} onClick={() => applyPreset(id)}
-              style={{ background: pal.pattern ? `${pal.pattern}, ${pal.ink}` : pal.ink, color: pal.paper, borderRadius: Math.min(t.radius ?? 16, 16) }}>
-              <span className="theme-sig" style={{ fontFamily: stack(fontById(t.sigil), 'sigil'), color: pal.gold }}>χλθσξ</span>
-              <b style={{ fontFamily: stack(fontById(t.display), 'display'), fontStyle: t.italicTitle === false ? 'normal' : 'italic' }}>{t.name}</b>
-              <small style={{ fontFamily: stack(fontById(t.body), 'body'), color: pal.paperDim }}>{t.motto}</small>
-              <i style={{ background: pal.gold }} />
+            <button key={id} role="option" aria-selected={p.era === id} className={'medal ' + (p.era === id ? 'on ' : '') + (focus === id ? 'focus' : '')}
+              onMouseEnter={() => setFocus(id)} onFocus={() => setFocus(id)} onClick={() => { setFocus(id); applyEra(id) }}>
+              <span className="coin" style={{ background: c.ink.hex, color: c.gold.hex, borderColor: c.gold.hex, fontFamily: stack(fontById(x.display), 'display') }}>{x.name[0]}</span>
+              <span className="yr">{x.year}</span>
+              <span className="nm" style={{ fontFamily: stack(fontById(x.display), 'display') }}>{x.name}</span>
             </button>
           )
         })}
-        <button className={'theme dice ' + (p.preset === 'acaso' ? 'on' : '')} onClick={surprise}>
-          <span className="theme-sig">⚄</span><b>Acaso</b><small>sorteia fontes e cores</small>
+        <button className={'medal ' + (p.era === 'acaso' ? 'on' : '')} onClick={surprise}>
+          <span className="coin dice">⚄</span><span className="yr">qualquer dia</span><span className="nm">Acaso</span>
         </button>
       </div>
+
+      <article className="era-card" style={{ background: pal.pattern ? `${pal.pattern}, ${pal.ink.hex}` : pal.ink.hex, color: pal.paper.hex }}>
+        <p className="era-when" style={{ color: pal.gold.hex }}>{e.year} · {e.place}</p>
+        <h3 style={{ fontFamily: stack(fontById(e.display), 'display'), fontStyle: e.italicTitle === false ? 'normal' : 'italic' }}>{e.name}</h3>
+        <p style={{ fontFamily: stack(fontById(e.body), 'body') }}>{e.story}</p>
+        <p className="era-glyphs" style={{ fontFamily: stack(fontById(SCRIPTS[e.script].font), 'spell'), color: pal.gold.hex }}>{SCRIPTS[e.script].glyphs.slice(0, 12).join(' ')}</p>
+        <ul className="pigments">
+          {[pal.ink, pal.paper, pal.gold, pal.rose].filter((x, i, a) => a.findIndex((y) => y.hex === x.hex) === i).map((pg) => (
+            <li key={pg.hex}><i style={{ background: pg.hex }} /><b>{pg.name}</b>{pg.note !== '—' && <small>{pg.note}</small>}</li>
+          ))}
+        </ul>
+        {p.era !== focus && <Seal small onClick={() => applyEra(focus)}>viver aqui</Seal>}
+      </article>
     </>
   )
 }
 
-const ROLES: { role: Role; label: string; sample: string; hint: string }[] = [
-  { role: 'display', label: 'Títulos', sample: 'Kairos', hint: 'O nome do app, o oráculo e os títulos dos cards.' },
-  { role: 'body', label: 'Texto', sample: 'Guardar agora, viver depois.', hint: 'Botões, descrições e o texto corrido.' },
-  { role: 'mono', label: 'Rótulos', sample: 'EM 2 DIAS · 09:00', hint: 'Domínios, datas, preços — as letrinhas técnicas.' },
-  { role: 'sigil', label: 'Grego', sample: 'χ λ θ σ ξ · καιρός', hint: 'Sigilos e trechos em grego. Só fontes que têm o alfabeto grego.' },
+const ROLES: { role: Role | 'spell'; label: string; sample: string; hint: string }[] = [
+  { role: 'display', label: 'títulos', sample: 'Rete', hint: 'O nome do app, o oráculo e os títulos das folhas.' },
+  { role: 'body', label: 'texto', sample: 'Guardar agora, viver depois.', hint: 'As frases, as notas e as descrições.' },
+  { role: 'mono', label: 'rótulos', sample: 'EM 2 DIAS · 09:00', hint: 'Domínios, datas, preços — as letrinhas técnicas.' },
+  { role: 'sigil', label: 'grego', sample: 'χ λ θ σ ξ · ἀστρολάβος', hint: 'Sigilos e trechos em grego. Só fontes que têm o alfabeto grego.' },
+  { role: 'spell', label: 'feitiço', sample: '', hint: 'O alfabeto das letras que giram antes de formar uma palavra.' },
 ]
 const CATS: Cat[] = ['serifa', 'sans', 'mono', 'script', 'display', 'gótica']
 
-function Fonts() {
+function Letters() {
   const p = usePrefs()
-  const [role, setRole] = useState<Role>('display')
+  const [role, setRole] = useState<Role | 'spell'>('display')
   const [cat, setCat] = useState<Cat | null>(null)
   const [custom, setCustom] = useState('')
   const r = ROLES.find((x) => x.role === role)!
-  const list = FONTS.filter((f) => f.roles.includes(role) && (!cat || f.cat === cat))
-  useEffect(() => { list.forEach((f) => loadFont(f, r.sample + f.family)) }, [role, cat]) // eslint-disable-line
-  const current = fontById(p[role])
-  const cats = CATS.filter((c) => FONTS.some((f) => f.roles.includes(role) && f.cat === c))
+  const list = role === 'spell' ? [] : FONTS.filter((f) => f.roles.includes(role as Role) && (!cat || f.cat === cat))
+  useEffect(() => { list.forEach((f) => loadFont(f, r.sample + f.family)); if (role === 'spell') Object.values(SCRIPTS).forEach((s) => loadFont(fontById(s.font))) }, [role, cat]) // eslint-disable-line
+  const cats = role === 'spell' ? [] : CATS.filter((c) => FONTS.some((f) => f.roles.includes(role as Role) && f.cat === c))
   return (
     <>
-      <div className="seg">
-        {ROLES.map((x) => <button key={x.role} className={role === x.role ? 'on' : ''} onClick={() => { setRole(x.role); setCat(null) }}>{x.label}</button>)}
-      </div>
-      <p className="hint">{r.hint}</p>
-      <div className="font-now">
-        <span className="mono">em uso</span>
-        <b style={{ fontFamily: stack(current, role) }}>{current.family}</b>
-        <small>{current.note}</small>
-      </div>
-      {cats.length > 1 && (
-        <div className="chips small">
-          <button className={!cat ? 'on' : ''} onClick={() => setCat(null)}>todas</button>
-          {cats.map((c) => <button key={c} className={cat === c ? 'on' : ''} onClick={() => setCat(cat === c ? null : c)}>{c}</button>)}
-        </div>
+      <p className="sentence">Escolhendo a letra dos <Choice value={role} onChange={(v) => { setRole(v); setCat(null) }} options={ROLES.map((x) => [x.role, x.label])} />.</p>
+      <p className="aside">{r.hint}</p>
+
+      {role === 'spell' ? (
+        <>
+          <div className="specimens">
+            <button className={'specimen ' + (p.script === 'era' ? 'on' : '')} onClick={() => setPrefs({ script: 'era' })}>
+              <span className="sample" style={{ fontFamily: 'var(--spell)' }}>{activeScript({ ...p, script: 'era' }).glyphs.slice(0, 6).join('')}</span>
+              <b>o da era</b><small>muda quando você troca de era</small>
+            </button>
+            {Object.entries(SCRIPTS).map(([id, s]) => (
+              <button key={id} className={'specimen ' + (p.script === id ? 'on' : '')} onClick={() => setPrefs({ script: id })}>
+                <span className="sample" style={{ fontFamily: stack(fontById(s.font), 'spell') }}>{s.glyphs.slice(0, 6).join('')}</span>
+                <b>{s.label}</b>
+              </button>
+            ))}
+          </div>
+          <Spell as="p" className="spell-demo" text={p.title || 'Rete'} key={p.script} replayOnHover />
+          <p className="aside">Passe o mouse (ou toque) no nome acima para lançar de novo.</p>
+        </>
+      ) : (
+        <>
+          <div className="now-using">
+            <span className="mono">em uso</span>
+            <b style={{ fontFamily: stack(fontById(p[role as 'display']), role as Role) }}>{fontById(p[role as 'display']).family}</b>
+            <small>{fontById(p[role as 'display']).note}</small>
+          </div>
+          {cats.length > 1 && <p className="sentence small">Mostrar <Choice value={cat ?? 'todas'} onChange={(v) => setCat(v === 'todas' ? null : (v as Cat))} options={[['todas', 'todas'], ...cats.map((c) => [c, c] as [string, string])]} />.</p>}
+          <div className="specimens">
+            {list.map((f) => (
+              <button key={f.id} className={'specimen ' + (p[role as 'display'] === f.id ? 'on' : '')} onClick={() => setPrefs({ [role]: f.id, era: 'pessoal' } as Partial<Prefs>)} title={f.note}>
+                <span className="sample" style={{ fontFamily: stack(f, role as Role), fontStyle: role === 'display' && p.italicTitle ? 'italic' : 'normal' }}>{role === 'display' ? f.family : r.sample}</span>
+                <b>{role !== 'display' && f.family}</b>
+                <small>{f.cat}{f.greek && <i title="tem alfabeto grego">Ελ</i>}{f.hebrew && <i title="tem alfabeto hebraico">עב</i>}</small>
+              </button>
+            ))}
+          </div>
+          <form className="line-field" onSubmit={(e) => { e.preventDefault(); if (custom.trim()) { setPrefs({ [role]: 'gf:' + custom.trim(), era: 'pessoal' } as Partial<Prefs>); setCustom('') } }}>
+            <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="ou o nome de qualquer fonte do Google Fonts…" />
+            <button className="ink" type="submit">usar</button>
+          </form>
+        </>
       )}
-      <div className="fonts">
-        {list.map((f) => (
-          <button key={f.id} className={'font ' + (p[role] === f.id ? 'on' : '')} onClick={() => setPrefs({ [role]: f.id, preset: 'pessoal' })} title={f.note}>
-            <span className="font-sample" style={{ fontFamily: stack(f, role), fontStyle: role === 'display' && p.italicTitle ? 'italic' : 'normal' }}>{role === 'display' ? f.family : r.sample}</span>
-            <span className="font-meta">
-              {role !== 'display' && <b>{f.family}</b>}
-              <small>{f.cat}{f.greek && <i title="tem alfabeto grego">Ελ</i>}{f.hebrew && <i title="tem alfabeto hebraico">עב</i>}</small>
+    </>
+  )
+}
+
+function Pigments() {
+  const p = usePrefs()
+  const pal = PALETTES[p.palette] ?? PALETTES.delfos
+  return (
+    <>
+      <p className="aside">Cada paleta é feita de pigmentos que existiram de verdade.</p>
+      <div className="pots">
+        {Object.entries(PALETTES).map(([id, x]) => (
+          <button key={id} className={'pot ' + (p.palette === id ? 'on' : '')} onClick={() => setPrefs({ palette: id, accent: null, era: 'pessoal' })} title={x.name}>
+            <span className="blot" style={{ background: x.ink.hex }}>
+              <i style={{ background: x.gold.hex }} /><i style={{ background: x.rose.hex }} /><i style={{ background: x.paper.hex }} />
             </span>
+            <span>{x.name}</span>
           </button>
         ))}
       </div>
-      <form className="custom-font" onSubmit={(e) => { e.preventDefault(); if (custom.trim()) { setPrefs({ [role]: 'gf:' + custom.trim(), preset: 'pessoal' }); setCustom('') } }}>
-        <input value={custom} onChange={(e) => setCustom(e.target.value)} placeholder="ou digite qualquer fonte do Google Fonts…" />
-        <button className="btn" type="submit">usar</button>
-      </form>
+      <h4>na paleta {pal.name}</h4>
+      <ul className="pigments plain">
+        {[pal.ink, pal.paper, pal.gold, pal.rose].filter((x, i, a) => a.findIndex((y) => y.hex === x.hex) === i).map((pg) => (
+          <li key={pg.hex}><i style={{ background: pg.hex }} /><b>{pg.name}</b>{pg.note !== '—' && <small>{pg.note}</small>}</li>
+        ))}
+      </ul>
+      <p className="sentence">Rubricar com <label className="word swatch"><input type="color" value={p.accent ?? pal.gold.hex} onChange={(e) => setPrefs({ accent: e.target.value })} /><i style={{ background: p.accent ?? pal.gold.hex }} />{p.accent ? 'uma cor minha' : pal.gold.name.toLowerCase()}</label>
+        {p.accent && <> · <button className="ink" onClick={() => setPrefs({ accent: null })}>voltar ao pigmento</button></>}.</p>
     </>
   )
 }
 
-function Colors() {
+function Craft() {
   const p = usePrefs()
+  const [auto, setAuto] = useState<boolean | null>(null)
+  useEffect(() => { getAutostart().then(setAuto) }, [])
+  const yes = (k: keyof Prefs, a: string, b: string) => <Choice value={p[k] as boolean} onChange={(v) => setPrefs({ [k]: v } as Partial<Prefs>)} options={[[true, a], [false, b]]} sep="/" />
+  const Ruler = ({ k, label, min, max, step, fmt }: { k: 'scale' | 'tilt' | 'radius' | 'reminderHour'; label: string; min: number; max: number; step: number; fmt: (v: number) => string }) => (
+    <label className="ruler"><span>{label} <b>{fmt(p[k])}</b></span><input type="range" min={min} max={max} step={step} value={p[k]} onChange={(e) => setPrefs({ [k]: +e.target.value })} /></label>
+  )
   return (
     <>
-      <div className="palettes">
-        {Object.entries(PALETTES).map(([id, pal]) => (
-          <button key={id} className={'palette ' + (p.palette === id ? 'on' : '')} onClick={() => setPrefs({ palette: id, accent: null, preset: 'pessoal' })}
-            style={{ background: pal.pattern ? `${pal.pattern}, ${pal.ink}` : pal.ink, color: pal.paper }}>
-            <span className="dots"><i style={{ background: pal.gold }} /><i style={{ background: pal.rose }} /><i style={{ background: pal.ink3 }} /></span>
-            <b>Aa</b><small>{pal.name}</small>
-          </button>
-        ))}
-      </div>
-      <h4>cor de destaque</h4>
-      <div className="row">
-        <label className="color-pick">
-          <input type="color" value={p.accent ?? PALETTES[p.palette]?.gold ?? '#e8c27a'} onChange={(e) => setPrefs({ accent: e.target.value })} />
-          <span>{p.accent ?? 'da paleta'}</span>
-        </label>
-        {p.accent && <button className="btn ghost" onClick={() => setPrefs({ accent: null })}>voltar à da paleta</button>}
-      </div>
-    </>
-  )
-}
+      <h4>o nome</h4>
+      <label className="line-field"><input value={p.title} onChange={(e) => setPrefs({ title: e.target.value })} placeholder="Rete" aria-label="Nome no topo" /></label>
+      <label className="line-field"><input value={p.subtitle} onChange={(e) => setPrefs({ subtitle: e.target.value })} placeholder="a rede de estrelas do ἀστρολάβος" aria-label="Subtítulo" /></label>
+      <p className="aside">Grego, hebraico ou aramaico no subtítulo ganham a fonte grega sozinhos: <Scripts text="אֶתְפְּתַח · abre-te" /></p>
 
-function Details() {
-  const p = usePrefs()
-  const Toggle = ({ k, label, hint }: { k: 'grain' | 'motion' | 'oracle' | 'astrolabe' | 'italicTitle'; label: string; hint?: string }) => (
-    <label className="toggle"><span>{label}{hint && <small>{hint}</small>}</span><input type="checkbox" checked={p[k]} onChange={(e) => setPrefs({ [k]: e.target.checked })} /><i /></label>
-  )
-  const Slider = ({ k, label, min, max, step, fmt }: { k: 'scale' | 'tilt' | 'radius'; label: string; min: number; max: number; step: number; fmt: (v: number) => string }) => (
-    <label className="slider"><span>{label}<small>{fmt(p[k])}</small></span><input type="range" min={min} max={max} step={step} value={p[k]} onChange={(e) => setPrefs({ [k]: +e.target.value })} /></label>
-  )
-  return (
-    <>
-      <h4>nome</h4>
-      <div className="fields">
-        <input value={p.title} onChange={(e) => setPrefs({ title: e.target.value })} placeholder="Kairos" aria-label="Nome no topo" />
-        <input value={p.subtitle} onChange={(e) => setPrefs({ subtitle: e.target.value })} placeholder="καιρός · o momento oportuno" aria-label="Subtítulo" />
-        <p className="hint">Grego, hebraico ou aramaico no subtítulo ganham a fonte grega sozinhos: <Scripts text="אֶתְפְּתַח · abre-te" /></p>
-      </div>
-      <h4>mural</h4>
-      <div className="seg">
-        {(['arejado', 'confortável', 'compacto'] as const).map((d) => <button key={d} className={p.density === d ? 'on' : ''} onClick={() => setPrefs({ density: d })}>{d}</button>)}
-      </div>
-      <Slider k="tilt" label="Inclinação dos cards" min={0} max={3} step={0.25} fmt={(v) => (v === 0 ? 'retos' : v + '×')} />
-      <Slider k="radius" label="Cantos" min={0} max={28} step={2} fmt={(v) => v + 'px'} />
-      <Slider k="scale" label="Tamanho do texto" min={0.85} max={1.25} step={0.05} fmt={(v) => Math.round(v * 100) + '%'} />
-      <h4>presença</h4>
-      <Toggle k="oracle" label="Oráculo" hint="uma carta diferente a cada abertura" />
-      <Toggle k="astrolabe" label="Astrolábio" hint="os lembretes como astros" />
-      <Toggle k="italicTitle" label="Título em itálico" />
-      <label className="toggle"><span>Títulos dos cards na fonte de texto<small>para quando a fonte de título é decorativa demais</small></span>
-        <input type="checkbox" checked={p.cardFont === 'body'} onChange={(e) => setPrefs({ cardFont: e.target.checked ? 'body' : 'display' })} /><i /></label>
-      <Toggle k="grain" label="Granulado de filme" />
-      <Toggle k="motion" label="Animações" />
-      <h4>lembretes</h4>
-      <label className="slider"><span>Hora padrão<small>{String(p.reminderHour).padStart(2, '0')}:00</small></span>
-        <input type="range" min={5} max={22} step={1} value={p.reminderHour} onChange={(e) => setPrefs({ reminderHour: +e.target.value })} /></label>
-      <button className="btn ghost danger" onClick={() => confirm('Voltar tudo ao padrão?') && setPrefs({ ...DEFAULTS })}>restaurar padrão</button>
+      <h4>a mesa</h4>
+      <p className="sentence">O mural fica <Choice value={p.density} onChange={(v) => setPrefs({ density: v })} options={[['arejado', 'arejado'], ['confortável', 'confortável'], ['compacto', 'compacto']]} sep="," />.</p>
+      <p className="sentence">As folhas vêm {yes('tape', 'com fita adesiva', 'sem fita')}, e os títulos {<Choice value={p.cardFont} onChange={(v) => setPrefs({ cardFont: v })} options={[['display', 'na letra de título'], ['body', 'na letra de texto']]} sep="/" />}.</p>
+      <p className="sentence">O nome fica {yes('italicTitle', 'em itálico', 'em pé')}; o papel {yes('grain', 'tem grão', 'é liso')}; e tudo se move {yes('motion', 'com vida', 'em silêncio')}.</p>
+      <p className="sentence">O oráculo {yes('oracle', 'aparece', 'descansa')} e o astrolábio {yes('astrolabe', 'gira no topo', 'fica guardado')}.</p>
+      <Ruler k="tilt" label="Inclinação das folhas" min={0} max={3} step={0.25} fmt={(v) => (v === 0 ? 'retas' : v + '×')} />
+      <Ruler k="radius" label="Cantos" min={0} max={24} step={1} fmt={(v) => v + 'px'} />
+      <Ruler k="scale" label="Tamanho da letra" min={0.85} max={1.25} step={0.05} fmt={(v) => Math.round(v * 100) + '%'} />
+
+      <h4>o tempo</h4>
+      <Ruler k="reminderHour" label="Lembretes chegam às" min={5} max={22} step={1} fmt={(v) => String(v).padStart(2, '0') + 'h'} />
+      {isDesktopApp && auto !== null && (
+        <p className="sentence">O Rete {<Choice value={auto} onChange={async (v) => { await setAutostart(v); setAuto(v) }} options={[[true, 'abre junto com o computador'], [false, 'só abre quando eu mandar']]} sep="/" />}.
+          <span className="aside block">Aberto (mesmo escondido na bandeja), ele consegue tocar os lembretes na hora.</span></p>
+      )}
+      <p><button className="ink danger" onClick={() => confirm('Voltar tudo ao padrão?') && setPrefs({ ...DEFAULTS })}>restaurar o padrão</button></p>
     </>
   )
 }
@@ -191,29 +225,25 @@ function Account() {
   const [sent, setSent] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   if (s.phase === 'off') return (
-    <div className="hint block">
-      <p><b>Sincronização ainda não configurada.</b> Tudo continua salvo neste aparelho.</p>
-      <p>Para ligar: crie um projeto no Supabase e defina <code>VITE_SUPABASE_URL</code> e <code>VITE_SUPABASE_ANON_KEY</code> (passo a passo no README).</p>
+    <div className="aside">
+      <p><b>A sincronização ainda não foi ligada nesta versão.</b> Tudo continua guardado neste aparelho.</p>
+      <p>Quando o projeto no Supabase estiver criado, os links, lembretes e a aparência passam a viajar entre o celular e o computador.</p>
     </div>
   )
   if (!s.user) return (
     <>
-      <p className="hint">Entre para ter os mesmos links, lembretes e aparência no celular e no computador. Sem conta, tudo continua funcionando só neste aparelho.</p>
-      <button className="btn wide google" onClick={async () => { const { error } = await signInGoogle(); if (error) setErr(error.message) }}>
-        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden><path fill="#4285F4" d="M22.6 12.2c0-.8-.1-1.5-.2-2.2H12v4.2h6a5 5 0 0 1-2.2 3.3v2.7h3.5c2.1-1.9 3.3-4.7 3.3-8z"/><path fill="#34A853" d="M12 23c3 0 5.4-1 7.3-2.7l-3.5-2.7c-1 .7-2.3 1-3.8 1-2.9 0-5.4-2-6.3-4.6H2.1v2.8A11 11 0 0 0 12 23z"/><path fill="#FBBC05" d="M5.7 14c-.2-.7-.4-1.3-.4-2s.1-1.4.4-2V7.2H2.1a11 11 0 0 0 0 9.6L5.7 14z"/><path fill="#EA4335" d="M12 5.4c1.6 0 3.1.6 4.2 1.7l3.1-3.1A11 11 0 0 0 2.1 7.2L5.7 10C6.6 7.4 9.1 5.4 12 5.4z"/></svg>
-        entrar com Google
-      </button>
-      <p className="or">ou</p>
-      {sent ? <p className="hint">✉ Enviei um link para <b>{email}</b>. Abra-o neste aparelho.</p> : (
-        <form className="custom-font" onSubmit={async (e) => { e.preventDefault(); const { error } = await signInEmail(email); if (error) setErr(error.message); else setSent(true) }}>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu e-mail — mando um link mágico" />
-          <button className="btn" type="submit">enviar</button>
+      <p className="aside">Entre para ter a mesma rede no celular e no computador. Sem conta, tudo continua funcionando só neste aparelho.</p>
+      <p><Seal onClick={async () => { const { error } = await signInGoogle(); if (error) setErr(error.message) }}>entrar com Google</Seal></p>
+      {sent ? <p className="aside">✉ Mandei uma carta para <b>{email}</b>. Abra o link nela neste aparelho.</p> : (
+        <form className="line-field" onSubmit={async (e) => { e.preventDefault(); const { error } = await signInEmail(email); if (error) setErr(error.message); else setSent(true) }}>
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ou seu e-mail — mando um link mágico" />
+          <button className="ink" type="submit">enviar</button>
         </form>
       )}
-      {err && <p className="hint danger">{err}</p>}
+      {err && <p className="aside danger">{err}</p>}
     </>
   )
-  const label = { syncing: 'sincronizando…', ok: s.at ? 'sincronizado ' + relative(s.at) : 'sincronizado', offline: 'sem internet — sincroniza quando voltar', error: 'erro: ' + s.error, off: '', 'signed-out': '' }[s.phase]
+  const label = { syncing: 'sincronizando…', ok: s.at ? 'em dia ' + relative(s.at) : 'em dia', offline: 'sem internet — sincroniza quando voltar', error: 'erro: ' + s.error, off: '', 'signed-out': '' }[s.phase]
   return (
     <>
       <div className="me">
@@ -221,45 +251,44 @@ function Account() {
         <div><b>{s.user.name || s.user.email}</b><small>{s.user.email}</small></div>
       </div>
       <p className={'sync-state ' + s.phase}><i />{label}</p>
-      <div className="row">
-        <button className="btn" onClick={() => syncNow()}>sincronizar agora</button>
-        <button className="btn ghost" onClick={() => signOut()}>sair</button>
-      </div>
-      <p className="hint">Ao sair, os links continuam neste aparelho.</p>
+      <p><button className="ink" onClick={() => syncNow()}>sincronizar agora</button> · <button className="ink" onClick={() => signOut()}>sair</button></p>
+      <p className="aside">Ao sair, os links continuam neste aparelho.</p>
     </>
   )
 }
 
 function About({ items, onImport }: { items: Item[]; onImport: (xs: Item[]) => void }) {
-  const ready = useUpdateReady()
-  const [checking, setChecking] = useState<'idle' | 'busy' | 'latest'>('idle')
-  const bookmarklet = `javascript:void(open('${location.origin}/?url='+encodeURIComponent(location.href),'_blank'))`
+  const upd = useUpdate()
+  const bookmarklet = "javascript:void(location.href='rete://add?url='+encodeURIComponent(location.href))"
   const exportJson = () => {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' }))
-    a.download = `kairos-${new Date().toISOString().slice(0, 10)}.json`; a.click()
+    a.download = `rete-${new Date().toISOString().slice(0, 10)}.json`; a.click()
   }
+  const status = {
+    idle: <button className="ink" onClick={checkForUpdate}>procurar versão nova</button>,
+    checking: <>procurando…</>, latest: <>✓ esta é a mais nova</>, error: <>não consegui verificar agora</>,
+    downloading: <>baixando a {upd.version}… {Math.round((upd.progress ?? 0) * 100)}%</>,
+    ready: <button className="ink" onClick={applyUpdate}>reiniciar na {upd.version}</button>,
+    available: <button className="ink" onClick={applyUpdate}>baixar a {upd.version}</button>,
+  }[upd.phase]
   return (
     <>
-      <div className="version">
-        <span className="mono">versão</span><b>{VERSION}</b>
-        {ready ? <button className="btn gold" onClick={applyUpdate}>atualizar agora</button>
-          : <button className="btn ghost" onClick={async () => { setChecking('busy'); const r = await checkForUpdate(); setChecking(r ? 'idle' : 'latest') }}>
-            {checking === 'busy' ? 'procurando…' : checking === 'latest' ? '✓ última versão' : 'procurar atualização'}</button>}
+      <div className="colophon">
+        <p className="mono">versão</p>
+        <p className="big">{VERSION}</p>
+        <p>{isNative ? status : 'versão de desenvolvimento (navegador)'}</p>
       </div>
-      <p className="hint">O app se atualiza sozinho: baixa a versão nova em silêncio e troca quando você não está olhando.</p>
+      <p className="aside">No computador, o Rete se atualiza sozinho: baixa em silêncio e pede só um reinício. No celular, avisa quando há versão nova.</p>
 
       <h4>formas de guardar</h4>
-      <p className="hint"><b>Celular:</b> instale (menu do navegador → “Adicionar à tela inicial”). No Android, o Kairos aparece no <i>Compartilhar</i> de qualquer app.</p>
-      <p className="hint"><b>Computador:</b> Ctrl+V em qualquer lugar, arraste um link pra janela, ou arraste este botão pra barra de favoritos: <a className="bm" href={bookmarklet} onClick={(e) => e.preventDefault()}>✦ guardar no Kairos</a></p>
+      <p className="aside"><b>Em qualquer lugar:</b> copie um link e volte ao Rete — ele oferece guardar. Ou cole (Ctrl+V) e arraste links direto na janela.</p>
+      <p className="aside"><b>Do navegador:</b> arraste este marcador para a barra de favoritos: <a className="bm" href={bookmarklet} onClick={(e) => e.preventDefault()}>✦ pro Rete</a></p>
 
       <h4>cópia de segurança</h4>
-      <div className="row">
-        <button className="btn" onClick={exportJson}>exportar JSON</button>
-        <label className="btn">importar<input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) onImport(JSON.parse(await f.text())) }} /></label>
-      </div>
+      <p><button className="ink" onClick={exportJson}>exportar a rede (JSON)</button> · <label className="ink">importar<input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) onImport(JSON.parse(await f.text())) }} /></label></p>
 
-      <h4>histórico de versões</h4>
+      <h4>diário de bordo</h4>
       {releases().map((r) => (
         <details key={r.version} className="release" open={r.version === VERSION}>
           <summary><b>{r.version}</b>{r.date && <span className="mono">{r.date}</span>}</summary>

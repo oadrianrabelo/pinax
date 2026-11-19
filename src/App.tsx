@@ -3,13 +3,16 @@ import {
   KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, loadPreview, relative, store,
   type Item, type Kind,
 } from './model'
-import { usePrefs } from './prefs'
+import { ERAS, usePrefs } from './prefs'
 import { initSync, scheduleSync, useSync } from './sync'
-import { applyUpdate, justUpdated, useUpdateReady, type Release } from './update'
+import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from './update'
+import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, readClipboard, scheduleReminder, setAutostart } from './native'
+import { Spell, greekNumeral } from './spell'
+import { Choice, Notes, Scripts, Seal, deckle } from './bits'
 import Atelier from './Atelier'
-import { Notes, Scripts } from './bits'
 
 type View = 'agora' | 'feitos'
+const KIND_IDS = Object.keys(KINDS) as Kind[]
 
 export default function App() {
   const [items, setItems] = useState<Item[]>([])
@@ -17,18 +20,21 @@ export default function App() {
   const [filter, setFilter] = useState<Kind | null>(null)
   const [view, setView] = useState<View>('agora')
   const [query, setQuery] = useState('')
+  const [searching, setSearching] = useState(false)
   const [open, setOpen] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
-  const [, tick] = useState(0)
+  const [offer, setOffer] = useState<string | null>(null)
   const [atelier, setAtelier] = useState(false)
   const [news, setNews] = useState<Release | null>(() => justUpdated())
+  const [, tick] = useState(0)
   const prefs = usePrefs()
   const sync = useSync()
-  const updateReady = useUpdateReady()
+  const upd = useUpdate()
   const itemsRef = useRef(items)
   itemsRef.current = items
+  const era = ERAS[prefs.era]
 
-  const say = useCallback((t: string) => { setToast(t); setTimeout(() => setToast((c) => (c === t ? null : c)), 2600) }, [])
+  const say = useCallback((t: string) => { setToast(t); setTimeout(() => setToast((c) => (c === t ? null : c)), 2800) }, [])
 
   const save = useCallback(async (raw: Item) => {
     const i = store.touch(raw)
@@ -42,17 +48,21 @@ export default function App() {
 
   const patch = useCallback((id: string, p: Partial<Item>) => {
     const cur = itemsRef.current.find((x) => x.id === id)
-    if (cur) save({ ...cur, ...p })
+    if (!cur) return
+    const next = { ...cur, ...p }
+    save(next)
+    if ('remindAt' in p || 'doneAt' in p || 'deletedAt' in p)
+      scheduleReminder(id, next.doneAt || next.deletedAt ? undefined : next.remindAt, 'Chegou a hora ' + KINDS[next.kind].sigil, next.title || host(next.url))
   }, [save])
 
   const add = useCallback(async (raw: string, note?: string) => {
     const url = extractUrl(raw)
     if (!url) return say('Isso não parece um link.')
     const dup = itemsRef.current.find((x) => canon(x.url) === canon(url))
-    if (dup) { setOpen(dup.id); return say('Esse já estava guardado.') }
+    if (dup) { setOpen(dup.id); return say('Esse já estava na rede.') }
     const item: Item = { id: crypto.randomUUID(), url, kind: guessKind(url), createdAt: Date.now(), note, loading: true }
     await save(item)
-    say(`${KINDS[item.kind].sigil}  guardado`)
+    say(`${KINDS[item.kind].sigil} · uma estrela nova na rede`)
     const p = await loadPreview(url)
     const latest = itemsRef.current.find((x) => x.id === item.id) ?? item
     const kind = latest.kind === item.kind ? guessKind(url, p.type, p.price) : latest.kind
@@ -62,18 +72,30 @@ export default function App() {
 
   const remove = useCallback((id: string) => { patch(id, { deletedAt: Date.now() }); setOpen(null); say('Esquecido.') }, [patch, say])
 
-  // carregar + receber links compartilhados (share target / bookmarklet)
+  // começo: banco local, links compartilhados, nuvem, atualizações
   useEffect(() => {
-    store.all().then((xs) => { setItems(xs); setReady(true)
+    captureLinks()
+    store.all().then((xs) => {
+      setItems(xs); setReady(true)
       const q = new URLSearchParams(location.search)
       const shared = extractUrl(q.get('url')) ?? extractUrl(q.get('text')) ?? extractUrl(q.get('title'))
       if (shared) { history.replaceState(null, '', '/'); add(shared) }
       xs.filter((x) => x.loading).forEach((x) => loadPreview(x.url).then(({ type: _t, ...m }) => save({ ...x, ...m, loading: false })))
+      // no celular, garante que todos os alarmes futuros estão agendados no sistema
+      if (isMobile) xs.filter((x) => x.remindAt && !x.doneAt && x.remindAt > Date.now())
+        .forEach((x) => scheduleReminder(x.id, x.remindAt, 'Chegou a hora ' + KINDS[x.kind].sigil, x.title || host(x.url)))
     })
     initSync(() => store.all().then(setItems))
+    startUpdater()
+    // rete://add?url=...  (o favorito do navegador manda links direto pro app)
+    onDeepLink((u) => { const url = new URL(u); if (url.host === 'add') { const l = url.searchParams.get('url'); if (l) add(l) } })
+    // na primeira vez no computador, liga "abrir com o sistema" — é o que faz os lembretes tocarem
+    if (isDesktopApp && !localStorage.getItem('rete:autostart-asked')) {
+      localStorage.setItem('rete:autostart-asked', '1')
+      getAutostart().then((on) => { if (on === false) setAutostart(true) })
+    }
   }, []) // eslint-disable-line
 
-  // aparência mudou → sobe pra nuvem também
   useEffect(() => { if (prefs.updatedAt) scheduleSync() }, [prefs.updatedAt])
 
   // colar em qualquer lugar / arrastar link pra janela
@@ -86,15 +108,30 @@ export default function App() {
     return () => { removeEventListener('paste', onPaste); removeEventListener('drop', onDrop); removeEventListener('dragover', onOver) }
   }, [add])
 
-  // relógio dos lembretes: avisa quando chega o kairós
+  // copiou um link em outro app? ao voltar, o Rete oferece guardar
+  useEffect(() => {
+    if (!isNative) return
+    const look = async () => {
+      if (document.visibilityState !== 'visible') return
+      const u = extractUrl(await readClipboard())
+      if (!u || itemsRef.current.some((x) => canon(x.url) === canon(u))) return
+      if (localStorage.getItem('rete:offered') === canon(u)) return
+      localStorage.setItem('rete:offered', canon(u))
+      setOffer(u)
+    }
+    look()
+    document.addEventListener('visibilitychange', look); addEventListener('focus', look)
+    return () => { document.removeEventListener('visibilitychange', look); removeEventListener('focus', look) }
+  }, [])
+
+  // relógio dos lembretes (no computador, roda até com a janela fechada, na bandeja)
   useEffect(() => {
     const check = () => {
       tick((n) => n + 1)
       for (const i of itemsRef.current) {
         if (isDue(i) && !i.notifiedAt) {
           patch(i.id, { notifiedAt: Date.now() })
-          if ('Notification' in window && Notification.permission === 'granted')
-            navigator.serviceWorker?.ready.then((r) => r.showNotification('Chegou o kairós ' + KINDS[i.kind].sigil, { body: i.title || host(i.url), icon: '/icon-192.png', tag: i.id, data: { url: i.url } }))
+          if (!isMobile) notify('Chegou a hora ' + KINDS[i.kind].sigil, i.title || host(i.url))
         }
       }
     }
@@ -102,6 +139,12 @@ export default function App() {
     document.addEventListener('visibilitychange', check)
     return () => { clearInterval(t); document.removeEventListener('visibilitychange', check) }
   }, [patch])
+
+  const order = useMemo(() => {
+    const m = new Map<string, number>()
+    ;[...items].sort((a, b) => a.createdAt - b.createdAt).forEach((x, i) => m.set(x.id, i + 1))
+    return m
+  }, [items])
 
   const visible = useMemo(() => {
     const q = query.toLowerCase()
@@ -111,67 +154,107 @@ export default function App() {
   }, [items, filter, view, query])
 
   const pending = items.filter((i) => !i.doneAt)
-  const counts = useMemo(() => Object.fromEntries((Object.keys(KINDS) as Kind[]).map((k) => [k, pending.filter((i) => i.kind === k).length])), [pending])
+  const due = pending.filter(isDue)
+  const counts = useMemo(() => Object.fromEntries(KIND_IDS.map((k) => [k, pending.filter((i) => i.kind === k).length])), [pending])
   const current = items.find((i) => i.id === open) ?? null
+  const heading = view === 'feitos' ? 'Consumidos' : filter ? KINDS[filter].label : 'Tudo o que espera'
 
   return (
     <>
       <div className="grain" aria-hidden />
-      <header className="top">
-        <div className="brand">
-          <h1>{prefs.title || 'Kairos'}</h1>
-          {prefs.subtitle && <p className="greek"><Scripts text={prefs.subtitle} /></p>}
+      <header className="masthead">
+        <div className="title-block">
+          <p className="era-line">
+            <button className="ink" onClick={() => setAtelier(true)} title="Trocar de era">
+              {era ? <>era · {era.name} · {era.year}</> : 'era · do acaso'}
+            </button>
+          </p>
+          <Spell as="h1" text={prefs.title || 'Rete'} replayOnHover />
+          {prefs.subtitle && <p className="subtitle"><Scripts text={prefs.subtitle} /></p>}
           <p className="lede">
-            {pending.length === 0 ? 'Nada guardado ainda. Cole um link em qualquer lugar.' :
-              <>Você guarda <b>{pending.length}</b> {pending.length === 1 ? 'coisa' : 'coisas'} esperando a hora certa{pending.some(isDue) && <> — <span className="due-text">{pending.filter(isDue).length} {pending.filter(isDue).length === 1 ? 'chegou' : 'chegaram'}</span></>}.</>}
+            {pending.length === 0 ? <>A rede está vazia. Cole um link em qualquer lugar e ele vira uma estrela.</> : <>
+              <b>{pending.length}</b> <span className="num" title="em numeral grego">{greekNumeral(pending.length)}</span> {pending.length === 1 ? 'estrela espera' : 'estrelas esperam'} a hora certa
+              {due.length > 0 && <>; <em className="due-text">{due.length === 1 ? 'uma já chegou' : `${due.length} já chegaram`}</em></>}.
+            </>}
           </p>
         </div>
-        {prefs.astrolabe && <Astrolabe items={pending} onPick={setOpen} />}
+        {prefs.astrolabe && (
+          <Astrolabe items={pending} filter={filter} counts={counts} dueCount={due.length}
+            onFilter={(k) => { setFilter(k); setView('agora') }} onPick={setOpen} />
+        )}
       </header>
 
-      {ready && prefs.oracle && pending.length > 0 && <Oracle items={pending} onOpen={setOpen} onDone={(id) => patch(id, { doneAt: Date.now() })} />}
+      {ready && prefs.oracle && view === 'agora' && pending.length > 0 && (
+        <Oracle items={pending} onOpen={setOpen} onDone={(id) => patch(id, { doneAt: Date.now() })} />
+      )}
 
-      <nav className="sigils" aria-label="Categorias">
-        <button className={!filter ? 'on' : ''} onClick={() => setFilter(null)}><span>∗</span>Tudo</button>
-        {(Object.keys(KINDS) as Kind[]).map((k) => (
-          <button key={k} className={filter === k ? 'on' : ''} onClick={() => setFilter(filter === k ? null : k)} title={`${KINDS[k].word} — ${KINDS[k].meaning}`}>
-            <span>{KINDS[k].sigil}</span>{KINDS[k].label}{counts[k] > 0 && <i>{counts[k]}</i>}
-          </button>
-        ))}
-        <div className="spacer" />
-        <input className="search" placeholder="procurar…" value={query} onChange={(e) => setQuery(e.target.value)} />
-        <button className={'view ' + (view === 'feitos' ? 'on' : '')} onClick={() => setView(view === 'agora' ? 'feitos' : 'agora')}>
-          {view === 'agora' ? '✓ consumidos' : '← voltar'}
-        </button>
-      </nav>
+      <section className="catalogue">
+        <div className="catalogue-head">
+          <Spell as="h2" text={heading} key={heading} speed={0.7} />
+          <p className="index">
+            <button className={'ink ' + (!filter && view === 'agora' ? 'on' : '')} onClick={() => { setFilter(null); setView('agora') }}>tudo</button>
+            {KIND_IDS.map((k) => (
+              <button key={k} className={'ink ' + (filter === k ? 'on' : '')} onClick={() => { setFilter(filter === k ? null : k); setView('agora') }} title={`${KINDS[k].word} — ${KINDS[k].meaning}`}>
+                <span className="script">{KINDS[k].sigil}</span> {KINDS[k].label.toLowerCase()}{counts[k] > 0 && <sup>{counts[k]}</sup>}
+              </button>
+            ))}
+            <span className="dot">·</span>
+            <button className={'ink ' + (view === 'feitos' ? 'on' : '')} onClick={() => setView(view === 'feitos' ? 'agora' : 'feitos')}>consumidos</button>
+            <span className="dot">·</span>
+            {searching || query
+              ? <input autoFocus className="find" value={query} onChange={(e) => setQuery(e.target.value)} onBlur={() => setSearching(false)} placeholder="procurar…" />
+              : <button className="ink" onClick={() => setSearching(true)}>procurar</button>}
+          </p>
+        </div>
 
-      <main className="mural">
-        {visible.map((i) => <Card key={i.id} item={i} onClick={() => setOpen(i.id)} />)}
-        {ready && visible.length === 0 && (
-          <div className="empty">
-            <span>{filter ? KINDS[filter].sigil : view === 'feitos' ? '✓' : '∅'}</span>
-            <p>{view === 'feitos' ? 'Nada consumido ainda.' : query ? 'Nada encontrado.' : 'Cole, arraste ou compartilhe um link pra cá.'}</p>
-          </div>
+        <div className="mural">
+          {visible.map((i) => <Leaf key={i.id} item={i} n={order.get(i.id) ?? 0} onClick={() => setOpen(i.id)} />)}
+          {ready && visible.length === 0 && (
+            <div className="empty">
+              <span className="script">{filter ? KINDS[filter].sigil : view === 'feitos' ? '✓' : '∅'}</span>
+              <p>{view === 'feitos' ? 'Nada consumido ainda.' : query ? 'Nenhuma estrela com esse nome.' : 'Cole, arraste ou copie um link e volte aqui.'}</p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      <Quill onAdd={add} />
+
+      <button className={'astro-btn ' + sync.phase} onClick={() => setAtelier(true)} aria-label="Abrir o Ateliê" title="Ateliê">
+        {sync.user?.avatar ? <img src={sync.user.avatar} alt="" referrerPolicy="no-referrer" /> : (
+          <svg viewBox="-12 -12 24 24" width="26" height="26" aria-hidden className="mini-astro">
+            <circle r="10" /><circle r="6.5" cy="-1.5" /><path d="M0 -10 V10 M-10 0 H10" /><path d="M-7 7 L7 -7" className="hand" />
+          </svg>
         )}
-      </main>
-
-      <AddBar onAdd={add} />
-      <button className={'gear ' + sync.phase} onClick={() => setAtelier(true)} aria-label="Abrir o Ateliê" title="Ateliê">
-        {sync.user?.avatar ? <img src={sync.user.avatar} alt="" referrerPolicy="no-referrer" /> : '☉'}
       </button>
+
       {atelier && <Atelier items={items} onClose={() => setAtelier(false)} onImport={async (xs) => {
         for (const x of xs) await store.put(store.touch(x))
         setItems(await store.all()); scheduleSync(); say(`${xs.length} itens importados`)
       }} />}
-      {current && <Sheet item={current} hour={prefs.reminderHour} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
-      {updateReady && <button className="update-pill" onClick={applyUpdate}>✦ nova versão pronta — atualizar</button>}
+      {current && <Ficha item={current} hour={prefs.reminderHour} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
+
+      {(upd.phase === 'ready' || upd.phase === 'available') && (
+        <button className="ribbon" onClick={applyUpdate}>
+          {upd.phase === 'ready' ? <>versão {upd.version} pronta — <u>reiniciar</u></> : <>versão {upd.version} disponível — <u>baixar</u></>}
+        </button>
+      )}
+      {offer && (
+        <div className="slip offer" role="dialog">
+          <p>Você copiou <b>{host(offer)}</b>. Guardar na rede?</p>
+          <div className="row">
+            <Seal small onClick={() => { add(offer); setOffer(null) }}>guardar</Seal>
+            <button className="ink" onClick={() => setOffer(null)}>agora não</button>
+          </div>
+        </div>
+      )}
       {news && (
         <div className="scrim center" onClick={() => setNews(null)}>
-          <div className="news" onClick={(e) => e.stopPropagation()}>
-            <p className="eyebrow">atualizado</p>
-            <h2>Versão {news.version}</h2>
+          <div className="letter" onClick={(e) => e.stopPropagation()}>
+            <p className="eyebrow">uma carta da oficina</p>
+            <Spell as="h2" text={'Versão ' + news.version} />
             <Notes body={news.body || 'Melhorias e correções.'} />
-            <button className="btn gold" onClick={() => setNews(null)}>que bom</button>
+            <Seal onClick={() => setNews(null)}>lido</Seal>
           </div>
         </div>
       )}
@@ -180,38 +263,77 @@ export default function App() {
   )
 }
 
-// ——— Astrolábio: cada lembrete é um astro; quanto mais perto do centro, mais perto do momento ———
-function Astrolabe({ items, onPick }: { items: Item[]; onPick: (id: string) => void }) {
-  const R = 120
-  const stars = items.filter((i) => i.remindAt).map((i) => {
-    const days = Math.max(0, (i.remindAt! - Date.now()) / 864e5)
-    const r = isDue(i) ? 0 : 22 + Math.min(1, Math.log1p(days) / Math.log1p(30)) * (R - 30)
-    const a = (hash(i.id) % 360) * (Math.PI / 180)
-    return { i, x: Math.cos(a) * r, y: Math.sin(a) * r }
+// ——— Astrolábio: a navegação. As categorias ficam no limbo; os links são estrelas na rete. ———
+function Astrolabe({ items, filter, counts, dueCount, onFilter, onPick }: {
+  items: Item[]; filter: Kind | null; counts: Record<string, number>; dueCount: number
+  onFilter: (k: Kind | null) => void; onPick: (id: string) => void
+}) {
+  const R = 170
+  const marks: (Kind | null)[] = [null, ...KIND_IDS]
+  const angleOf = (i: number) => -90 + i * (360 / marks.length)
+  const activeIdx = marks.indexOf(filter)
+  const stars = items.slice(0, 80).map((i) => {
+    const sector = KIND_IDS.indexOf(i.kind) + 1
+    const base = angleOf(sector) + ((hash(i.id) % 40) - 20)
+    const days = i.remindAt ? Math.max(0, (i.remindAt - Date.now()) / 864e5) : 60
+    const r = isDue(i) ? 26 : 34 + Math.min(1, Math.log1p(days) / Math.log1p(60)) * (R - 70)
+    const a = (base * Math.PI) / 180
+    return { i, x: Math.cos(a) * r, y: Math.sin(a) * r, base }
+  })
+  const lines = KIND_IDS.map((k) => {
+    const s = stars.filter((x) => x.i.kind === k).sort((a, b) => a.base - b.base)
+    return { k, d: s.length > 1 ? 'M' + s.map((p) => `${p.x.toFixed(1)} ${p.y.toFixed(1)}`).join(' L') : '' }
   })
   return (
-    <svg className="astrolabe" viewBox="-130 -130 260 260" role="img" aria-label="Astrolábio de lembretes">
-      <g className="rings">
-        {[R, 92, 64, 36].map((r) => <circle key={r} r={r} />)}
-        <g className="spin">
-          {Array.from({ length: 72 }, (_, k) => {
-            const a = (k * 5 * Math.PI) / 180, l = k % 6 === 0 ? 8 : 3
-            return <line key={k} x1={Math.cos(a) * R} y1={Math.sin(a) * R} x2={Math.cos(a) * (R - l)} y2={Math.sin(a) * (R - l)} />
-          })}
-          {'ΑΒΓΔΕΖΗΘΙΚΛΜ'.split('').map((g, k) => {
-            const a = (k * 30 * Math.PI) / 180 - Math.PI / 2
-            return <text key={g} x={Math.cos(a) * 104} y={Math.sin(a) * 104 + 3}>{g}</text>
-          })}
-        </g>
-        <path d="M0 -120 V120 M-120 0 H120" className="cross" />
+    <svg className="astrolabe" viewBox="-210 -210 420 420" role="img" aria-label="Astrolábio: categorias no anel, links como estrelas">
+      <g className="mater">
+        <circle r={R + 30} className="limb-outer" />
+        <circle r={R} className="limb" />
+        {Array.from({ length: 120 }, (_, k) => {
+          const a = (k * 3 * Math.PI) / 180, l = k % 10 === 0 ? 12 : k % 5 === 0 ? 7 : 3.5
+          return <line key={k} x1={Math.cos(a) * R} y1={Math.sin(a) * R} x2={Math.cos(a) * (R + l)} y2={Math.sin(a) * (R + l)} />
+        })}
+        <circle r={R * 0.62} className="tropic" />
+        <circle r={R * 0.3} className="tropic" />
+        {[0.9, 0.75, 0.6, 0.45].map((f) => <circle key={f} cy={R * (1 - f) * 0.55} r={R * f * 0.92} className="almucantar" />)}
+        <path d={`M0 ${-R} V${R} M${-R} 0 H${R}`} className="cross" />
       </g>
-      <circle r="6" className="sun" />
-      {stars.map(({ i, x, y }) => (
-        <g key={i.id} className={'star ' + (isDue(i) ? 'due' : '')} transform={`translate(${x} ${y})`} onClick={() => onPick(i.id)}>
-          <circle r="11" className="halo" /><circle r="3.5" />
-          <title>{(i.title || host(i.url)) + ' — ' + relative(i.remindAt!)}</title>
-        </g>
-      ))}
+
+      <g className="rete">
+        <circle cy={-R * 0.22} r={R * 0.66} className="ecliptic" />
+        {lines.map(({ k, d }) => d && <path key={k} d={d} className={'constellation ' + (filter && filter !== k ? 'dim' : '')} />)}
+        {stars.map(({ i, x, y }) => (
+          <g key={i.id} className={'star ' + (isDue(i) ? 'due ' : '') + (filter && filter !== i.kind ? 'dim' : '')} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={() => onPick(i.id)}>
+            <circle r="10" className="halo" />
+            <path d="M0 -4.5 L1.1 -1.1 L4.5 0 L1.1 1.1 L0 4.5 L-1.1 1.1 L-4.5 0 L-1.1 -1.1 Z" className="point" />
+            <title>{(i.title || host(i.url)) + (i.remindAt ? ' — ' + relative(i.remindAt) : '')}</title>
+          </g>
+        ))}
+      </g>
+
+      <g className="alidade" style={{ transform: `rotate(${angleOf(Math.max(0, activeIdx)) + 90}deg)` }}>
+        <path d={`M-3 ${R - 8} L0 ${R + 2} L3 ${R - 8} M0 ${R - 8} V${-R + 8} M-3 ${-R + 8} L0 ${-R - 2} L3 ${-R + 8}`} />
+        <rect x="-5" y={-R * 0.5} width="10" height="22" rx="2" />
+      </g>
+
+      {marks.map((k, i) => {
+        const a = (angleOf(i) * Math.PI) / 180
+        const x = Math.cos(a) * (R + 16), y = Math.sin(a) * (R + 16)
+        const on = filter === k
+        return (
+          <g key={k ?? 'all'} className={'mark ' + (on ? 'on' : '')} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={() => onFilter(on ? null : k)} role="button" aria-label={k ? KINDS[k].label : 'Tudo'}>
+            <circle r="17" className="mark-bg" />
+            <text y="6">{k ? KINDS[k].sigil : '∗'}</text>
+            {k && counts[k] > 0 && <text className="mark-count" x="14" y="-10">{counts[k]}</text>}
+            <title>{k ? `${KINDS[k].label} — ${KINDS[k].word}, ${KINDS[k].meaning}` : 'Tudo'}</title>
+          </g>
+        )
+      })}
+
+      <g className={'umbilicus ' + (dueCount ? 'due' : '')}>
+        <circle r="13" />
+        {dueCount > 0 ? <text y="4.5">{greekNumeral(dueCount)}</text> : <circle r="3" className="pin" />}
+      </g>
     </svg>
   )
 }
@@ -222,36 +344,36 @@ function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string)
     const due = items.filter(isDue)
     const pool = (due.length ? due : items).filter((i) => i.id !== exclude)
     const p = pool.length ? pool : items
-    // itens mais antigos pesam mais: quem espera há mais tempo tem mais chance de ser lembrado
     const w = p.map((i) => 1 + Math.sqrt((Date.now() - i.createdAt) / 864e5))
     let r = Math.random() * w.reduce((a, b) => a + b, 0)
     return p.find((_, k) => (r -= w[k]) <= 0) ?? p[0]
   }, [items])
-  const [id, setId] = useState<string>(() => { let last: string | undefined; try { last = localStorage.getItem('kairos:last') ?? undefined } catch {} return pick(last).id })
+  const [id, setId] = useState<string>(() => { let last: string | undefined; try { last = localStorage.getItem('rete:last') ?? undefined } catch {} return pick(last).id })
   const [flipped, setFlipped] = useState(false)
   const item = items.find((i) => i.id === id) ?? items[0]
-  useEffect(() => { try { localStorage.setItem('kairos:last', item.id) } catch {} }, [item.id])
-  useEffect(() => { const t = setTimeout(() => setFlipped(true), 450); return () => clearTimeout(t) }, [id])
+  useEffect(() => { try { localStorage.setItem('rete:last', item.id) } catch {} }, [item.id])
+  useEffect(() => { const t = setTimeout(() => setFlipped(true), 650); return () => clearTimeout(t) }, [id])
   const next = () => { setFlipped(false); setTimeout(() => setId(pick(item.id).id), 420) }
   const k = KINDS[item.kind]
+  const line = isDue(item) ? 'Você pediu para lembrar disto.' : 'Talvez seja a hora disto.'
   return (
     <section className="oracle">
       <div className="oracle-copy">
-        <p className="eyebrow">{isDue(item) ? 'chegou o kairós' : 'a carta de agora'}</p>
-        <h2>{isDue(item) ? 'Você pediu pra lembrar disto.' : 'Talvez seja a hora disto.'}</h2>
-        <p className="muted">Toda vez que você abre, o oráculo tira uma carta do que está esperando.</p>
+        <p className="eyebrow">{isDue(item) ? 'chegou a hora' : 'o oráculo tirou uma carta'}</p>
+        <Spell as="h2" text={line} key={line + id} speed={0.6} />
+        <p className="aside">Toda vez que você abre o app, uma estrela da rede vem até você.</p>
         <div className="row">
-          <a className="btn gold" href={item.url} target="_blank" rel="noreferrer">abrir ↗</a>
-          <button className="btn" onClick={next}>outra carta</button>
-          <button className="btn ghost" onClick={() => { onDone(item.id); next() }}>✓ já fiz</button>
+          <a href={item.url} target="_blank" rel="noreferrer" className="seal-link"><Seal>abrir</Seal></a>
+          <button className="ink" onClick={next}>outra carta</button>
+          <button className="ink" onClick={() => { onDone(item.id); next() }}>já fiz ✓</button>
         </div>
       </div>
       <div className={'tarot ' + (flipped ? 'flipped' : '')} onClick={() => (flipped ? onOpen(item.id) : setFlipped(true))}>
-        <div className="face back"><div className="back-art"><span>καιρός</span></div></div>
+        <div className="face back"><TarotBack /></div>
         <div className="face front">
-          <div className="tarot-img" style={art(item)}>{item.image ? <img src={item.image} alt="" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} /> : <b>{k.sigil}</b>}</div>
+          <div className="tarot-img" style={art(item)}>{item.image ? <img src={item.image} alt="" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} /> : <b className="script">{k.sigil}</b>}</div>
           <div className="tarot-body">
-            <span className="roman">{k.sigil} · {k.word}</span>
+            <span className="tarot-word"><span className="script">{k.sigil} · {k.word}</span></span>
             <h3>{item.title || host(item.url)}</h3>
             <span className="mono">{host(item.url)}</span>
           </div>
@@ -261,37 +383,55 @@ function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string)
   )
 }
 
+function TarotBack() {
+  return (
+    <svg viewBox="-100 -165 200 330" className="tarot-back" aria-hidden>
+      <rect x="-90" y="-155" width="180" height="310" rx="6" className="frame" />
+      <rect x="-82" y="-147" width="164" height="294" rx="3" className="frame thin" />
+      <g className="rays">{Array.from({ length: 36 }, (_, i) => { const a = (i * 10 * Math.PI) / 180; return <line key={i} x1={Math.cos(a) * 30} y1={Math.sin(a) * 30} x2={Math.cos(a) * (i % 2 ? 58 : 72)} y2={Math.sin(a) * (i % 2 ? 58 : 72)} /> })}</g>
+      <circle r="26" className="frame" />
+      <text y="10" className="script">ρ</text>
+      {[-120, 120].map((y) => <text key={y} y={y + 5} className="corner">✦</text>)}
+    </svg>
+  )
+}
+
 // Arte generativa: cada domínio tem sua paleta, quando não há imagem
 function art(i: Item): React.CSSProperties {
   const h = hash(host(i.url)), a = h % 360, b = (a + 40 + (h >> 8) % 80) % 360
-  return { background: `radial-gradient(120% 90% at ${20 + (h % 60)}% 10%, hsl(${a} 70% 62%), transparent 60%), radial-gradient(100% 100% at 90% 100%, hsl(${b} 60% 40%), hsl(${a} 30% 12%))` }
+  return { background: `radial-gradient(120% 90% at ${20 + (h % 60)}% 10%, hsl(${a} 55% 58%), transparent 60%), radial-gradient(100% 100% at 90% 100%, hsl(${b} 45% 38%), hsl(${a} 25% 14%))` }
 }
 
-function Card({ item: i, onClick }: { item: Item; onClick: () => void }) {
+// ——— Folha: um recorte colado no caderno ———
+function Leaf({ item: i, n, onClick }: { item: Item; n: number; onClick: () => void }) {
   const k = KINDS[i.kind]
-  const tilt = ((hash(i.id) % 7) - 3) * 0.45
+  const h = hash(i.id)
   const [broken, setBroken] = useState(false)
+  const title = i.loading ? '' : i.title || host(i.url)
+  const style = {
+    '--tilt': `${((h % 7) - 3) * 0.5}deg`,
+    '--tape-rot': `${((h >> 4) % 13) - 6}deg`,
+    '--tape-x': `${30 + ((h >> 8) % 40)}%`,
+  } as React.CSSProperties
   return (
-    <article className={'card ' + (isDue(i) ? 'due ' : '') + (i.loading ? 'loading' : '')} style={{ '--tilt': `${tilt}deg` } as React.CSSProperties} onClick={onClick} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}>
-      <div className="thumb" style={art(i)}>
-        {i.image && !broken ? <img src={i.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} /> : <b>{k.sigil}</b>}
-        <span className="sigil" title={k.word}>{k.sigil}</span>
+    <article className={'leaf ' + (isDue(i) ? 'due ' : '') + (i.loading ? 'loading' : '')} style={style} onClick={onClick} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}>
+      <figure className="plate" style={{ clipPath: deckle(i.id), ...art(i) }}>
+        {i.image && !broken ? <img src={i.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} /> : <b className="script">{k.sigil}</b>}
         {i.price && <span className="price">{i.price}</span>}
+      </figure>
+      <div className="caption">
+        <p className="leaf-meta"><span className="num">{greekNumeral(n)}</span><span className="script sig" title={k.word}>{k.sigil}</span><span className="mono">{i.site || host(i.url)}</span></p>
+        <h3>{i.loading ? <span className="shimmer">lendo as estrelas…</span> : <><span className="initial">{title.slice(0, 1)}</span>{title.slice(1)}</>}</h3>
+        {i.note && <p className="marg">“{i.note}”</p>}
+        {i.remindAt && !i.doneAt && <p className={'when ' + (isDue(i) ? 'now' : '')}>☾ {isDue(i) ? 'chegou a hora' : relative(i.remindAt)}</p>}
       </div>
-      <div className="body">
-        <h3>{i.loading ? <span className="shimmer">lendo o link…</span> : i.title || host(i.url)}</h3>
-        {i.note && <p className="note">“{i.note}”</p>}
-        <footer>
-          {i.favicon && <img className="fav" src={i.favicon} alt="" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} />}
-          <span className="mono">{i.site || host(i.url)}</span>
-          {i.remindAt && !i.doneAt && <span className={'when ' + (isDue(i) ? 'now' : '')}>☾ {relative(i.remindAt)}</span>}
-        </footer>
-      </div>
+      {isDue(i) && <span className="wax-stamp" aria-hidden>☾</span>}
     </article>
   )
 }
 
-function AddBar({ onAdd }: { onAdd: (url: string, note?: string) => void }) {
+// ——— Pena: a forma de escrever na rede ———
+function Quill({ onAdd }: { onAdd: (url: string) => void }) {
   const [v, setV] = useState('')
   const ref = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -299,60 +439,59 @@ function AddBar({ onAdd }: { onAdd: (url: string, note?: string) => void }) {
     addEventListener('keydown', k); return () => removeEventListener('keydown', k)
   }, [])
   const fromClipboard = async () => {
-    try { const t = await navigator.clipboard.readText(); if (extractUrl(t)) { onAdd(t); return } } catch {}
+    const t = await readClipboard()
+    if (t && extractUrl(t)) return onAdd(t)
     ref.current?.focus()
   }
   return (
-    <form className="addbar" onSubmit={(e) => { e.preventDefault(); if (v.trim()) { onAdd(v); setV('') } }}>
-      <input ref={ref} value={v} onChange={(e) => setV(e.target.value)} placeholder="cole um link — ou só aperte Ctrl+V em qualquer lugar" inputMode="url" enterKeyHint="done" />
-      {v ? <button className="plus" type="submit" aria-label="Guardar">↵</button>
-        : <button className="plus" type="button" onClick={fromClipboard} aria-label="Colar da área de transferência">+</button>}
+    <form className="quill" onSubmit={(e) => { e.preventDefault(); if (v.trim()) { onAdd(v); setV('') } }}>
+      <span className="nib" aria-hidden>✒</span>
+      <input ref={ref} value={v} onChange={(e) => setV(e.target.value)} placeholder="escreva um link — ou só cole em qualquer lugar" inputMode="url" enterKeyHint="done" aria-label="Novo link" />
+      {v ? <Seal small type="submit">guardar</Seal> : <Seal small type="button" onClick={fromClipboard} title="Colar o que você copiou">colar</Seal>}
     </form>
   )
 }
 
-function Sheet({ item: i, hour, onClose, patch, remove, say }: { item: Item; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
+// ——— Ficha do item, escrita em frases ———
+function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
   const [note, setNote] = useState(i.note ?? '')
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
-  const remind = async (when: number) => {
-    patch({ remindAt: when, notifiedAt: undefined })
-    say('☾ lembro ' + relative(when))
-    if ('Notification' in window && Notification.permission === 'default') try { await Notification.requestPermission() } catch {}
-  }
+  const remind = (when: number) => { patch({ remindAt: when, notifiedAt: undefined }); say('☾ lembro ' + relative(when)) }
   const local = (ms?: number) => { if (!ms) return ''; const d = new Date(ms - new Date().getTimezoneOffset() * 6e4); return d.toISOString().slice(0, 16) }
+  const k = KINDS[i.kind]
   return (
     <div className="scrim" onClick={onClose}>
-      <aside className="sheet" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={i.title || i.url}>
+      <aside className="sheet ficha" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={i.title || i.url}>
         <div className="grip" />
-        <div className="sheet-img" style={art(i)}>{i.image ? <img src={i.image} alt="" referrerPolicy="no-referrer" /> : <b>{KINDS[i.kind].sigil}</b>}</div>
+        <figure className="sheet-plate" style={{ clipPath: deckle(i.id + 'f', 1), ...art(i) }}>{i.image ? <img src={i.image} alt="" referrerPolicy="no-referrer" /> : <b className="script">{k.sigil}</b>}</figure>
         <div className="sheet-body">
-          <span className="mono">{i.site || host(i.url)}{i.price && ' · ' + i.price}</span>
+          <p className="mono">{i.site || host(i.url)}{i.price && ' · ' + i.price}</p>
           <h2>{i.title || host(i.url)}</h2>
           {i.description && <p className="desc">{i.description}</p>}
-          <a className="btn gold wide" href={i.url} target="_blank" rel="noreferrer">abrir o link ↗</a>
+          <div className="row"><a href={i.url} target="_blank" rel="noreferrer" className="seal-link"><Seal>abrir o link</Seal></a></div>
 
-          <h4>o que é</h4>
-          <div className="chips">
-            {(Object.keys(KINDS) as Kind[]).map((k) => (
-              <button key={k} className={i.kind === k ? 'on' : ''} onClick={() => patch({ kind: k })}><span>{KINDS[k].sigil}</span>{KINDS[k].label}</button>
-            ))}
-          </div>
+          <p className="sentence">Isto é <Choice value={i.kind} onChange={(v) => patch({ kind: v })}
+            options={KIND_IDS.map((x) => [x, <><span className="script">{KINDS[x].sigil}</span> {KINDS[x].one}</>])} sep="," />.</p>
 
-          <h4>me lembre {i.remindAt && !i.doneAt && <em>— {relative(i.remindAt)}</em>}</h4>
-          <div className="chips">
-            {REMINDERS.map((r) => <button key={r.label} onClick={() => remind(r.when(hour))}>{r.label}</button>)}
-            <input type="datetime-local" value={local(i.remindAt)} onChange={(e) => e.target.value && remind(new Date(e.target.value).getTime())} />
-            {i.remindAt && <button onClick={() => patch({ remindAt: undefined })}>✕ sem lembrete</button>}
-          </div>
-          {i.remindAt && <button className="link" onClick={() => downloadIcs(i)}>＋ pôr no calendário do celular/PC (toca mesmo com o app fechado)</button>}
+          <p className="sentence">Me lembre <Choice value={-1 as number} onChange={(v) => remind(REMINDERS[v].when(hour))}
+            options={REMINDERS.map((r, n) => [n, r.label])} sep="," /> ou <label className="word date">num dia exato<input type="datetime-local" value={local(i.remindAt)} onChange={(e) => e.target.value && remind(new Date(e.target.value).getTime())} /></label>.</p>
+          {i.remindAt && (
+            <p className="aside">
+              ☾ Marcado para <b>{new Date(i.remindAt).toLocaleString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</b> ({relative(i.remindAt)}).{' '}
+              {isNative ? (isMobile ? 'O celular toca mesmo com o app fechado.' : 'O Rete toca da bandeja, mesmo com a janela fechada.') : <button className="ink" onClick={() => downloadIcs(i)}>pôr no calendário</button>} ·{' '}
+              <button className="ink" onClick={() => patch({ remindAt: undefined })}>desmarcar</button>
+            </p>
+          )}
 
-          <h4>nota</h4>
-          <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== (i.note ?? '') && patch({ note })} placeholder="por que guardei isso?" rows={2} />
+          <label className="ruled">
+            <span>nota à margem</span>
+            <textarea value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== (i.note ?? '') && patch({ note })} placeholder="por que guardei isso?" rows={3} />
+          </label>
 
           <div className="row end">
-            <button className="btn ghost danger" onClick={() => confirm('Esquecer este link?') && remove()}>esquecer</button>
-            {i.doneAt ? <button className="btn" onClick={() => patch({ doneAt: undefined })}>↺ voltar pra fila</button>
-              : <button className="btn" onClick={() => { patch({ doneAt: Date.now() }); onClose(); say('✓ consumido') }}>✓ já consumi</button>}
+            <button className="ink danger" onClick={() => confirm('Esquecer este link?') && remove()}>esquecer</button>
+            {i.doneAt ? <Seal onClick={() => patch({ doneAt: undefined })}>↺ de volta à rede</Seal>
+              : <Seal onClick={() => { patch({ doneAt: Date.now() }); onClose(); say('✓ consumido') }}>✓ já consumi</Seal>}
           </div>
         </div>
       </aside>

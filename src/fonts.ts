@@ -1,7 +1,7 @@
 // Catálogo tipográfico. Toda spec foi verificada contra o Google Fonts.
 // `greek`/`hebrew`: a fonte tem os glifos (senão o navegador cai num fallback).
 
-export type Role = 'display' | 'body' | 'mono' | 'sigil'
+export type Role = 'display' | 'body' | 'mono' | 'sigil' | 'spell'
 export type Cat = 'serifa' | 'sans' | 'mono' | 'script' | 'display' | 'gótica'
 
 export interface Font {
@@ -34,7 +34,7 @@ export const FONTS: Font[] = [
   f('Rozha One', 'Rozha+One', 'serifa', ['display'], 'Peso de pôster, com hastes finíssimas. Também escreve devanágari.'),
   f('Bellefair', 'Bellefair', 'serifa', ['display'], 'Serifa delicada desenhada para latim e hebraico juntos.', { hebrew: true }),
   f('Suez One', 'Suez+One', 'serifa', ['display'], 'Hebraico pesado e moderno, de Tel Aviv.', { hebrew: true }),
-  f('Frank Ruhl Libre', 'Frank+Ruhl+Libre:wght@300..900', 'serifa', ['display', 'body'], 'A fonte clássica dos jornais e livros em hebraico desde 1910.', { hebrew: true }),
+  f('Frank Ruhl Libre', 'Frank+Ruhl+Libre:wght@300..900', 'serifa', ['display', 'body', 'spell'], 'A fonte clássica dos jornais e livros em hebraico desde 1910.', { hebrew: true }),
   f('David Libre', 'David+Libre:wght@400;500;700', 'serifa', ['display', 'body'], 'Baseada no David de Ismar David, Jerusalém, 1950.', { hebrew: true }),
   // — gótica / script / display —
   f('UnifrakturMaguntia', 'UnifrakturMaguntia', 'gótica', ['display'], 'Fraktur de Mainz — a cidade de Gutenberg.'),
@@ -86,6 +86,21 @@ export const FONTS: Font[] = [
   f('Syne Mono', 'Syne+Mono', 'mono', ['mono'], 'Esquisita e artística, da família Syne.'),
   f('Azeret Mono', 'Azeret+Mono:wght@100..900', 'mono', ['mono'], 'Mono polonesa com ar de terminal antigo.'),
   f('Victor Mono', 'Victor+Mono:ital,wght@0,100..700;1,100..700', 'mono', ['mono', 'sigil'], 'Itálico cursivo dentro de uma mono. E tem grego!', { greek: true }),
+  // — acrescentadas com as eras —
+  f('Marcellus', 'Marcellus', 'serifa', ['display'], 'Capitulares gravadas, inspiradas em inscrições gregas e romanas.'),
+  f('Uncial Antiqua', 'Uncial+Antiqua', 'display', ['display'], 'A escrita uncial dos manuscritos irlandeses, séc. V–VIII.'),
+  f('Grenze Gotisch', 'Grenze+Gotisch:wght@100..900', 'gótica', ['display'], 'Gótica de fronteira: metade fraktur, metade romana.'),
+  f('Cormorant Unicase', 'Cormorant+Unicase:wght@300;400;500;600;700', 'serifa', ['display'], 'Maiúsculas e minúsculas na mesma altura, como nas inscrições antigas.'),
+  f('Forum', 'Forum', 'serifa', ['display'], 'Romana clássica, de fórum e de arco do triunfo.'),
+  f('Linden Hill', 'Linden+Hill:ital@0;1', 'serifa', ['display', 'body'], 'Releitura das letras de Frederic Goudy, 1930.'),
+  f('Sorts Mill Goudy', 'Sorts+Mill+Goudy:ital@0;1', 'serifa', ['display', 'body'], 'Goudy Old Style revivida, com itálico de livro antigo.'),
+  f('Old Standard TT', 'Old+Standard+TT:ital,wght@0,400;0,700;1,400', 'serifa', ['body'], 'O “moderno” dos livros científicos do séc. XIX.'),
+  f('EB Garamond', 'EB+Garamond:ital,wght@0,400..800;1,400..800', 'serifa', ['display', 'body', 'sigil'], 'Garamond de 1592, com grego desenhado à mão.', { greek: true }),
+  f('Gentium Book Plus', 'Gentium+Book+Plus:ital,wght@0,400;0,700;1,400', 'serifa', ['body', 'sigil'], 'Feita para estudiosos: grego antigo com todos os acentos.', { greek: true }),
+  f('Reem Kufi', 'Reem+Kufi:wght@400..700', 'display', ['display'], 'Cúfica geométrica, a escrita dos primeiros Alcorões.'),
+  f('Amiri', 'Amiri:ital,wght@0,400;0,700;1,400', 'serifa', ['body', 'spell'], 'Naskh clássico, baseado na tipografia do Cairo de 1905.'),
+  f('Noto Sans Phoenician', 'Noto+Sans+Phoenician', 'display', ['spell'], 'O alfabeto fenício — pai do grego, do hebraico e do latim.'),
+  f('Noto Sans Imperial Aramaic', 'Noto+Sans+Imperial+Aramaic', 'display', ['spell'], 'Aramaico imperial, a língua comum do Império Persa.'),
 ]
 
 const FALLBACK: Record<Cat, string> = {
@@ -98,11 +113,11 @@ export function fontById(id: string): Font {
   const known = FONTS.find((x) => x.id === id)
   if (known) return known
   const family = id.startsWith('gf:') ? id.slice(3) : 'Geist'
-  return { id, family, spec: family.trim().replace(/\s+/g, '+'), cat: 'sans', roles: ['display', 'body', 'mono', 'sigil'], note: 'Escolhida por você no Google Fonts.' }
+  return { id, family, spec: family.trim().replace(/\s+/g, '+'), cat: 'sans', roles: ['display', 'body', 'mono', 'sigil', 'spell'], note: 'Escolhida por você no Google Fonts.' }
 }
 
 export const stack = (font: Font, role: Role) =>
-  `"${font.family}", ${role === 'sigil' ? '"GFS Didot", ' : ''}${role === 'mono' ? FALLBACK.mono : FALLBACK[font.cat]}`
+  `"${font.family}", ${role === 'sigil' || role === 'spell' ? '"GFS Didot", ' : ''}${role === 'mono' ? FALLBACK.mono : FALLBACK[font.cat]}`
 
 const loaded = new Set<string>()
 export function loadFont(font: Font, text?: string) {
