@@ -1,0 +1,12 @@
+#!/bin/sh
+# Conventional Commits: tipo(escopo opcional)!: descrição
+# Ex.: feat(sync): login com Google · fix: thumbnail do YouTube · feat!: novo formato de dados
+msg=$(head -n1 "$1")
+case "$msg" in Merge*|Revert*|fixup!*|squash!*) exit 0 ;; esac
+if ! printf '%s' "$msg" | grep -qE '^(feat|fix|perf|style|refactor|docs|test|chore|ci|build|revert)(\([a-z0-9-]+\))?!?: .+'; then
+  echo "✗ Mensagem fora do padrão Conventional Commits:"
+  echo "    $msg"
+  echo "  Use: feat|fix|perf|style|refactor|docs|test|chore|ci(escopo): descrição"
+  echo "  feat → versão minor · fix → patch · '!' ou 'BREAKING CHANGE:' → major"
+  exit 1
+fi

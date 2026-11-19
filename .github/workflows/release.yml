@@ -1,0 +1,19 @@
+# A cada push na main, o release-please lê os commits (Conventional Commits) e mantém
+# um PR "chore(main): release x.y.z" com a versão e o CHANGELOG. Ao dar merge nele,
+# cria a tag vX.Y.Z e a Release no GitHub. A Vercel publica a main; o app instalado
+# se atualiza sozinho e mostra as novidades.
+name: Release
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@v4
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
