@@ -2,6 +2,7 @@ import { defineConfig, type Connect } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
 import { fetchPreview } from './server/preview'
+import pkg from './package.json'
 
 const previewApi: Connect.NextHandleFunction = async (req, res) => {
   const url = new URL(req.url ?? '', 'http://x').searchParams.get('url')
@@ -12,6 +13,7 @@ const previewApi: Connect.NextHandleFunction = async (req, res) => {
 }
 
 export default defineConfig({
+  define: { __APP_VERSION__: JSON.stringify(pkg.version) },
   plugins: [
     react(),
     {
@@ -20,9 +22,9 @@ export default defineConfig({
       configurePreviewServer: (s) => { s.middlewares.use('/api/preview', previewApi) },
     },
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt',
       includeAssets: ['icon.svg'],
-      workbox: { navigateFallbackDenylist: [/^\/api\//] },
+      workbox: { navigateFallbackDenylist: [/^\/api\//], cleanupOutdatedCaches: true },
       manifest: {
         name: 'Kairos — o momento certo dos seus links',
         short_name: 'Kairos',

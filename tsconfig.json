@@ -8,6 +8,7 @@
     "strict": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "resolveJsonModule": true,
     "types": ["node", "vite/client", "vite-plugin-pwa/client"]
   },
   "include": ["src", "server", "api", "vite.config.ts"]
