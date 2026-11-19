@@ -3,6 +3,11 @@ import {
   KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, loadPreview, relative, store,
   type Item, type Kind,
 } from './model'
+import { usePrefs } from './prefs'
+import { initSync, scheduleSync, useSync } from './sync'
+import { applyUpdate, justUpdated, useUpdateReady, type Release } from './update'
+import Atelier from './Atelier'
+import { Notes, Scripts } from './bits'
 
 type View = 'agora' | 'feitos'
 
@@ -15,14 +20,24 @@ export default function App() {
   const [open, setOpen] = useState<string | null>(null)
   const [toast, setToast] = useState<string | null>(null)
   const [, tick] = useState(0)
+  const [atelier, setAtelier] = useState(false)
+  const [news, setNews] = useState<Release | null>(() => justUpdated())
+  const prefs = usePrefs()
+  const sync = useSync()
+  const updateReady = useUpdateReady()
   const itemsRef = useRef(items)
   itemsRef.current = items
 
   const say = useCallback((t: string) => { setToast(t); setTimeout(() => setToast((c) => (c === t ? null : c)), 2600) }, [])
 
-  const save = useCallback(async (i: Item) => {
-    setItems((xs) => { const rest = xs.filter((x) => x.id !== i.id); return [i, ...rest].sort((a, b) => b.createdAt - a.createdAt) })
+  const save = useCallback(async (raw: Item) => {
+    const i = store.touch(raw)
+    setItems((xs) => {
+      const rest = xs.filter((x) => x.id !== i.id)
+      return (i.deletedAt ? rest : [i, ...rest]).sort((a, b) => b.createdAt - a.createdAt)
+    })
     await store.put(i)
+    scheduleSync()
   }, [])
 
   const patch = useCallback((id: string, p: Partial<Item>) => {
@@ -45,9 +60,7 @@ export default function App() {
     await save({ ...latest, ...meta, kind, loading: false })
   }, [save, say])
 
-  const remove = useCallback(async (id: string) => {
-    setItems((xs) => xs.filter((x) => x.id !== id)); setOpen(null); await store.del(id); say('Esquecido.')
-  }, [say])
+  const remove = useCallback((id: string) => { patch(id, { deletedAt: Date.now() }); setOpen(null); say('Esquecido.') }, [patch, say])
 
   // carregar + receber links compartilhados (share target / bookmarklet)
   useEffect(() => {
@@ -57,7 +70,11 @@ export default function App() {
       if (shared) { history.replaceState(null, '', '/'); add(shared) }
       xs.filter((x) => x.loading).forEach((x) => loadPreview(x.url).then(({ type: _t, ...m }) => save({ ...x, ...m, loading: false })))
     })
+    initSync(() => store.all().then(setItems))
   }, []) // eslint-disable-line
+
+  // aparência mudou → sobe pra nuvem também
+  useEffect(() => { if (prefs.updatedAt) scheduleSync() }, [prefs.updatedAt])
 
   // colar em qualquer lugar / arrastar link pra janela
   useEffect(() => {
@@ -102,17 +119,17 @@ export default function App() {
       <div className="grain" aria-hidden />
       <header className="top">
         <div className="brand">
-          <h1>Kairos</h1>
-          <p className="greek">καιρός · <em>o momento oportuno</em></p>
+          <h1>{prefs.title || 'Kairos'}</h1>
+          {prefs.subtitle && <p className="greek"><Scripts text={prefs.subtitle} /></p>}
           <p className="lede">
             {pending.length === 0 ? 'Nada guardado ainda. Cole um link em qualquer lugar.' :
               <>Você guarda <b>{pending.length}</b> {pending.length === 1 ? 'coisa' : 'coisas'} esperando a hora certa{pending.some(isDue) && <> — <span className="due-text">{pending.filter(isDue).length} {pending.filter(isDue).length === 1 ? 'chegou' : 'chegaram'}</span></>}.</>}
           </p>
         </div>
-        <Astrolabe items={pending} onPick={setOpen} />
+        {prefs.astrolabe && <Astrolabe items={pending} onPick={setOpen} />}
       </header>
 
-      {ready && pending.length > 0 && <Oracle items={pending} onOpen={setOpen} onDone={(id) => patch(id, { doneAt: Date.now() })} />}
+      {ready && prefs.oracle && pending.length > 0 && <Oracle items={pending} onOpen={setOpen} onDone={(id) => patch(id, { doneAt: Date.now() })} />}
 
       <nav className="sigils" aria-label="Categorias">
         <button className={!filter ? 'on' : ''} onClick={() => setFilter(null)}><span>∗</span>Tudo</button>
@@ -139,8 +156,25 @@ export default function App() {
       </main>
 
       <AddBar onAdd={add} />
-      <Settings items={items} onImport={async (xs) => { for (const x of xs) await store.put(x); setItems(await store.all()); say(`${xs.length} itens importados`) }} />
-      {current && <Sheet item={current} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
+      <button className={'gear ' + sync.phase} onClick={() => setAtelier(true)} aria-label="Abrir o Ateliê" title="Ateliê">
+        {sync.user?.avatar ? <img src={sync.user.avatar} alt="" referrerPolicy="no-referrer" /> : '☉'}
+      </button>
+      {atelier && <Atelier items={items} onClose={() => setAtelier(false)} onImport={async (xs) => {
+        for (const x of xs) await store.put(store.touch(x))
+        setItems(await store.all()); scheduleSync(); say(`${xs.length} itens importados`)
+      }} />}
+      {current && <Sheet item={current} hour={prefs.reminderHour} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
+      {updateReady && <button className="update-pill" onClick={applyUpdate}>✦ nova versão pronta — atualizar</button>}
+      {news && (
+        <div className="scrim center" onClick={() => setNews(null)}>
+          <div className="news" onClick={(e) => e.stopPropagation()}>
+            <p className="eyebrow">atualizado</p>
+            <h2>Versão {news.version}</h2>
+            <Notes body={news.body || 'Melhorias e correções.'} />
+            <button className="btn gold" onClick={() => setNews(null)}>que bom</button>
+          </div>
+        </div>
+      )}
       {toast && <div className="toast" role="status">{toast}</div>}
     </>
   )
@@ -277,7 +311,7 @@ function AddBar({ onAdd }: { onAdd: (url: string, note?: string) => void }) {
   )
 }
 
-function Sheet({ item: i, onClose, patch, remove, say }: { item: Item; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
+function Sheet({ item: i, hour, onClose, patch, remove, say }: { item: Item; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
   const [note, setNote] = useState(i.note ?? '')
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const remind = async (when: number) => {
@@ -306,7 +340,7 @@ function Sheet({ item: i, onClose, patch, remove, say }: { item: Item; onClose: 
 
           <h4>me lembre {i.remindAt && !i.doneAt && <em>— {relative(i.remindAt)}</em>}</h4>
           <div className="chips">
-            {REMINDERS.map((r) => <button key={r.label} onClick={() => remind(r.when())}>{r.label}</button>)}
+            {REMINDERS.map((r) => <button key={r.label} onClick={() => remind(r.when(hour))}>{r.label}</button>)}
             <input type="datetime-local" value={local(i.remindAt)} onChange={(e) => e.target.value && remind(new Date(e.target.value).getTime())} />
             {i.remindAt && <button onClick={() => patch({ remindAt: undefined })}>✕ sem lembrete</button>}
           </div>
@@ -323,33 +357,5 @@ function Sheet({ item: i, onClose, patch, remove, say }: { item: Item; onClose: 
         </div>
       </aside>
     </div>
-  )
-}
-
-function Settings({ items, onImport }: { items: Item[]; onImport: (xs: Item[]) => void }) {
-  const [open, setOpen] = useState(false)
-  const bookmarklet = `javascript:void(open('${location.origin}/?url='+encodeURIComponent(location.href),'_blank'))`
-  const exportJson = () => {
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' }))
-    a.download = `kairos-${new Date().toISOString().slice(0, 10)}.json`; a.click()
-  }
-  return (
-    <>
-      <button className="gear" onClick={() => setOpen(!open)} aria-label="Ajustes">☉</button>
-      {open && (
-        <div className="settings">
-          <h4>formas de guardar</h4>
-          <p><b>Celular:</b> instale o app (menu do navegador → “Adicionar à tela inicial”). No Android ele aparece no botão <i>Compartilhar</i> de qualquer app.</p>
-          <p><b>Desktop:</b> Ctrl+V em qualquer lugar, arraste um link pra janela, ou arraste este botão pra barra de favoritos: <a className="bm" href={bookmarklet} onClick={(e) => e.preventDefault()}>✦ guardar no Kairos</a></p>
-          <h4>seus dados</h4>
-          <p className="muted">Tudo fica neste aparelho. Exporte pra levar pra outro.</p>
-          <div className="row">
-            <button className="btn" onClick={exportJson}>exportar</button>
-            <label className="btn">importar<input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) onImport(JSON.parse(await f.text())) }} /></label>
-          </div>
-        </div>
-      )}
-    </>
   )
 }
