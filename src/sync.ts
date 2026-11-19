@@ -5,10 +5,16 @@ import { createClient, type RealtimeChannel, type User } from '@supabase/supabas
 import { store } from './model'
 import { mergeRow, toRow, type Row } from './merge'
 import { getPrefs, setPrefs } from './prefs'
+import { isNative, onDeepLink, openExternal } from './native'
 
 const URL_ = import.meta.env.VITE_SUPABASE_URL as string | undefined
 const KEY_ = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
-export const supabase = URL_ && KEY_ ? createClient(URL_, KEY_) : null
+export const supabase = URL_ && KEY_
+  ? createClient(URL_, KEY_, { auth: { flowType: 'pkce', detectSessionInUrl: !isNative, persistSession: true } })
+  : null
+
+// No app nativo o login volta por um link profundo: rete://auth?code=...
+const REDIRECT = isNative ? 'rete://auth' : location.origin
 
 export interface SyncState {
   phase: 'off' | 'signed-out' | 'syncing' | 'ok' | 'offline' | 'error'
@@ -33,6 +39,13 @@ export function initSync(cb: () => void) {
   if (!supabase) return
   supabase.auth.getSession().then(({ data }) => handleUser(data.session?.user ?? null))
   supabase.auth.onAuthStateChange((_e, session) => { handleUser(session?.user ?? null) })
+  onDeepLink(async (url) => {
+    const code = new URL(url).searchParams.get('code')
+    if (code) {
+      const { error } = await supabase!.auth.exchangeCodeForSession(code)
+      if (error) set({ phase: 'error', error: error.message })
+    }
+  })
   addEventListener('online', () => syncNow())
   addEventListener('offline', () => set({ phase: 'offline' }))
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncNow() })
@@ -48,7 +61,7 @@ async function handleUser(user: User | null) {
   set({ user: { id: user.id, email: user.email, name: meta.full_name ?? meta.name, avatar: meta.avatar_url } })
 
   // primeira vez desta conta neste aparelho: o que já existe aqui precisa subir
-  const seen = 'kairos:seen:' + user.id
+  const seen = 'rete:seen:' + user.id
   if (!localStorage.getItem(seen)) {
     for (const i of await store.raw()) await store.put({ ...i, dirty: true })
     localStorage.setItem(seen, '1')
@@ -80,7 +93,7 @@ export async function syncNow() {
   running = true
   set({ phase: 'syncing' })
   try {
-    const cursorKey = 'kairos:cursor:' + uid
+    const cursorKey = 'rete:cursor:' + uid
     let cursor = localStorage.getItem(cursorKey) ?? '1970-01-01T00:00:00Z'
     let changed = false
 
@@ -128,6 +141,10 @@ export async function syncNow() {
   }
 }
 
-export const signInGoogle = () => supabase!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin } })
-export const signInEmail = (email: string) => supabase!.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } })
+export async function signInGoogle() {
+  const r = await supabase!.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: REDIRECT, skipBrowserRedirect: isNative } })
+  if (isNative && r.data.url) await openExternal(r.data.url)
+  return r
+}
+export const signInEmail = (email: string) => supabase!.auth.signInWithOtp({ email, options: { emailRedirectTo: REDIRECT } })
 export const signOut = () => supabase!.auth.signOut()

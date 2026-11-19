@@ -1,0 +1,40 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Rete",
+  "version": "../package.json",
+  "identifier": "app.rete.links",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "npm run dev:web",
+    "beforeBuildCommand": "npm run build:web"
+  },
+  "app": {
+    "windows": [
+      { "label": "main", "title": "Rete", "width": 1280, "height": 860, "minWidth": 380, "minHeight": 600, "center": true }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "category": "Productivity",
+    "shortDescription": "O astrolábio dos seus links",
+    "longDescription": "Guarde links de compras, leituras, vídeos e coleções e receba cada um de volta na hora certa.",
+    "copyright": "© 2026",
+    "createUpdaterArtifacts": false,
+    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+    "android": { "minSdkVersion": 24 }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDBFNkNENjc1MEYzMkY2NzMKUldSejlqSVBkZFpzRGl0dEZOMlNPcis0WUZLbTd4SW1aaUZZNXBuZ21Fc1gzaVNocktpbi9OTEoK",
+      "endpoints": ["https://github.com/oadrianrabelo/agregador-links/releases/latest/download/latest.json"],
+      "windows": { "installMode": "passive" }
+    },
+    "deep-link": {
+      "desktop": { "schemes": ["rete"] },
+      "mobile": [{ "scheme": ["rete"], "appLink": false }]
+    }
+  }
+}
