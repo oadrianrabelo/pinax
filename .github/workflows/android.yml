@@ -25,17 +25,39 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with: { workspaces: src-tauri }
       - run: npm ci
-      - name: Compilar APK (SDK e NDK que já vêm no runner)
+      - name: Compilar APK (modo de produção, um por processador)
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
-          echo "SDK: $ANDROID_HOME  NDK: $NDK_HOME"
           npx tauri android init --ci
-          npx tauri android build --apk --debug --target aarch64 --target armv7
+          npx tauri android build --apk --split-per-abi --target aarch64 --target armv7
+      - name: Assinar
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          BT=$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -n1)
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > rete.keystore
+            PASS="$KEYSTORE_PASSWORD"
+          else
+            # Sem chave fixa: assina com uma chave descartável (instala, mas a próxima versão pede reinstalar)
+            echo "::warning::ANDROID_KEYSTORE_BASE64 não configurado — APK assinado com chave temporária"
+            PASS=temporaria
+            keytool -genkeypair -keystore rete.keystore -storepass "$PASS" -keypass "$PASS" -alias rete \
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Rete" >/dev/null
+          fi
+          V="${{ inputs.version }}"
+          for abi in arm64 arm; do
+            IN=$(find src-tauri/gen/android -path "*/$abi/release/*.apk" | head -n1)
+            [ -z "$IN" ] && { echo "APK $abi não encontrado"; find src-tauri/gen/android -name '*.apk'; exit 1; }
+            NAME=$([ "$abi" = arm64 ] && echo "Rete_${V}_android.apk" || echo "Rete_${V}_android-armv7.apk")
+            "$BT/zipalign" -f -p 4 "$IN" aligned.apk
+            "$BT/apksigner" sign --ks rete.keystore --ks-pass "pass:$PASS" --ks-key-alias rete --out "$NAME" aligned.apk
+            ls -lh "$NAME"
+          done
       - name: Anexar à Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          APK=$(find src-tauri/gen/android -name '*.apk' | head -n1)
-          echo "APK: $APK"
-          cp "$APK" "Rete_${{ inputs.version }}_android.apk"
-          gh release upload "v${{ inputs.version }}" "Rete_${{ inputs.version }}_android.apk" --clobber
+          V="${{ inputs.version }}"
+          gh release upload "v$V" "Rete_${V}_android.apk" "Rete_${V}_android-armv7.apk" --clobber

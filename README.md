@@ -23,7 +23,7 @@
 ## Baixar
 
 Cada versão aparece em [Releases](../../releases) com os instaladores:
-`.msi`/`.exe` (Windows) · `.dmg` (macOS) · `.deb`/`.AppImage`/`.rpm` (Linux) · `.apk` (Android).
+`.msi`/`.exe` (Windows) · `.dmg` (macOS) · `.deb`/`.AppImage`/`.rpm` (Linux) · `_android.apk` (Android, quase todos os celulares) e `_android-armv7.apk` (celulares antigos, de 32 bits).
 
 > Os instaladores ainda não têm certificado de editor: o Windows mostra o aviso do SmartScreen (“Mais informações → Executar assim mesmo”) e o macOS pede clique-direito → Abrir na primeira vez.
 
@@ -58,7 +58,17 @@ O app instalado só aceita atualizações assinadas. Adicione em **Settings → 
 - `TAURI_SIGNING_PRIVATE_KEY` — o conteúdo da chave privada (a pública já está em `src-tauri/tauri.conf.json`)
 - `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — vazio (a chave foi gerada sem senha)
 
-Se perder a chave: `npx tauri signer generate -w rete.key`, troque o `pubkey` em `src-tauri/tauri.conf.json` pelo conteúdo de `rete.key.pub` e salve a nova privada no secret.
+### Uma vez só: chave fixa do Android
+
+Sem ela, cada APK sai com uma assinatura diferente e o Android pede para desinstalar antes de atualizar. Gere e cadastre:
+
+```bash
+keytool -genkeypair -keystore rete.keystore -alias rete -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Rete"
+base64 -w0 rete.keystore   # → secret ANDROID_KEYSTORE_BASE64
+```
+e a senha escolhida no secret `ANDROID_KEYSTORE_PASSWORD`. Guarde o `rete.keystore` num lugar seguro: perder a chave = reinstalar o app.
+
+Se perder a chave do atualizador: `npx tauri signer generate -w rete.key`, troque o `pubkey` em `src-tauri/tauri.conf.json` pelo conteúdo de `rete.key.pub` e salve a nova privada no secret.
 
 ## Sincronização (Supabase)
 
