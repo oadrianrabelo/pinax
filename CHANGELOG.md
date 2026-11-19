@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.2.1](https://github.com/oadrianrabelo/agregador-links/compare/v0.2.0...v0.2.1) (2026-11-19)
+
+### Correções
+
+* **visual:** letras com sentido e um mural mais calmo ([#3](https://github.com/oadrianrabelo/agregador-links/issues/3)) ([77645a3](https://github.com/oadrianrabelo/agregador-links/commit/77645a399ee1218225841838dd5f113d87279b35))
+
 ## [0.2.0](https://github.com/oadrianrabelo/agregador-links/compare/v0.1.0...v0.2.0) (2026-11-19)
 
 ### ✦ Novidades
