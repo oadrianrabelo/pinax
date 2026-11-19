@@ -2,3 +2,4 @@ node_modules
 dist
 dev-dist
 .vercel
+updater.conf.json

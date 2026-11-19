@@ -1,90 +1,83 @@
-# Kairos · καιρός
+# Rete
 
-> *Chronos* é o tempo que passa. *Kairos* é o momento certo.
-> Guarde links — compras, leituras, vídeos, coleções — e receba cada um de volta na hora oportuna.
+> *rēte*, latim: “rede”. No astrolábio, a **rete** é a placa vazada que guarda o mapa das estrelas e gira sobre o céu.
+> Aqui ela guarda os seus links — compras, leituras, vídeos, coleções — e gira até trazer cada um de volta na hora certa.
 
-<p align="center"><img src="docs/desktop.png" width="49%"> <img src="docs/atelier.png" width="49%"></p>
-<p align="center"><img src="docs/scriptorium.png" width="49%"> <img src="docs/neon.png" width="49%"></p>
+<p align="center"><img src="docs/delfos.png" width="49%"> <img src="docs/eras.png" width="49%"></p>
+<p align="center"><img src="docs/feitico.png" width="49%"> <img src="docs/yerushalayim.png" width="49%"></p>
 
-## O que faz
+## O que tem
 
-| | |
-|---|---|
-| **Guardar sem atrito** | Ctrl+V em qualquer lugar · arrastar o link pra janela · botão **+** · menu *Compartilhar* do Android · favorito no desktop |
-| **Ver sem abrir** | Thumbnail, título, descrição, site e preço (Open Graph). Sem imagem, gera uma arte do domínio. |
-| **Sigilos gregos** | **χ** χρῆμα (desejos) · **λ** λόγος (leituras) · **θ** θέα (vídeos) · **σ** συλλογή (coleções) · **ξ** ξένος (outros) |
-| **Me lembre** | hoje à noite · amanhã · 2 dias · fim de semana · 1 semana · 1 mês · data livre — notificação + `.ics` pro calendário |
-| **Oráculo** | Uma carta diferente a cada abertura. Lembretes vencidos primeiro; os mais antigos têm mais chance. |
-| **Astrolábio** | Cada lembrete é um astro: quanto mais perto do centro, mais perto da hora. |
-| **Ateliê** | 11 temas, 61 fontes em 4 papéis, 10 paletas, cor livre, qualquer fonte do Google Fonts pelo nome, densidade, inclinação, cantos, tamanho, animações, nome do app. |
-| **Sincronização** | Entre com Google (ou link por e-mail) e tudo — links, lembretes e aparência — fica igual no celular e no computador. |
-| **Atualiza sozinho** | Versão nova baixa em silêncio, troca quando você não está olhando e mostra as novidades. |
+- **App de verdade** para Windows, macOS, Linux e Android (Tauri). Nada de PWA.
+- **Lembretes que tocam de verdade.** No celular, o próprio sistema agenda o alarme — toca com o app fechado. No computador, o Rete abre junto com o sistema e fica na bandeja.
+- **O astrolábio é a navegação.** As cinco categorias ficam no anel (χ desejos · λ leituras · θ visões · σ coleções · ξ outros); cada link é uma estrela; cada categoria, uma constelação. Quanto mais perto do centro, mais perto da hora.
+- **O feitiço.** As letras surgem girando em órbita, trocando de alfabeto, e pousam formando a palavra. O alfabeto muda com a era: grego, fenício, hebraico, aramaico, árabe, latim.
+- **16 eras numa linha do tempo**, de Biblos (c. 1000 a.C., onde nasceu o alfabeto) ao Abismo — cada uma com fontes, alfabeto e **pigmentos históricos com nome e história** (cinábrio de Pompeia, azul egípcio, púrpura de Tiro, vermelhão das rubricas, latão de astrolábio…).
+- **75 fontes** escolhidas por papel (títulos, texto, rótulos, grego, feitiço), com selo de quem escreve grego (Ελ) e hebraico (עב), e qualquer outra do Google Fonts pelo nome.
+- **Sem cara de formulário.** Ações são lacres; links têm sublinhado de pena; escolhas são frases (“Isto é *uma leitura*. Me lembre *amanhã*.”); os itens são recortes colados com fita, numerados em numerais gregos (αʹ βʹ γʹ…) com letra capitular.
+- **Guardar sem esforço:** copie um link em qualquer app e volte ao Rete — ele oferece guardar. Ou cole (Ctrl+V), arraste, ou use o marcador do navegador (`rete://add`).
+- **Prévia sem abrir:** o app busca título, imagem e preço direto do site.
+- **Sincronização** celular ↔ computador (Supabase, login Google ou e-mail).
+- **Atualiza sozinho** e mostra o que mudou.
 
-## Rodar
+## Baixar
+
+Cada versão aparece em [Releases](../../releases) com os instaladores:
+`.msi`/`.exe` (Windows) · `.dmg` (macOS) · `.deb`/`.AppImage`/`.rpm` (Linux) · `.apk` (Android).
+
+> Os instaladores ainda não têm certificado de editor: o Windows mostra o aviso do SmartScreen (“Mais informações → Executar assim mesmo”) e o macOS pede clique-direito → Abrir na primeira vez.
+
+## Desenvolver
 
 ```bash
 npm install
-cp .env.example .env.local   # opcional: só para a sincronização
-npm run dev                  # http://localhost:5173
+npm run dev          # app nativo com recarga ao vivo (precisa de Rust)
+npm run dev:web      # só a interface, no navegador
 npm test
-npm run build
+npm run build        # instaladores para o seu sistema
 ```
 
-Sem `.env.local`, o app funciona 100% local (IndexedDB), só sem sincronizar.
+Linux precisa de: `libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev`.
+
+## Versões e releases (automático)
+
+Mensagens de commit em [Conventional Commits](https://www.conventionalcommits.org/pt-br) — o hook local recusa as que fogem do padrão:
+
+| commit | versão |
+|---|---|
+| `fix: ...` | 0.2.**1** |
+| `feat: ...` | 0.**3**.0 |
+| `feat!: ...` / `BREAKING CHANGE:` | **1**.0.0 |
+
+A cada push na `main`, o **semantic-release** decide a versão, atualiza `CHANGELOG.md`, cria a tag e a Release; em seguida o GitHub Actions compila os instaladores de todas as plataformas e anexa à Release.
+
+### Uma vez só: ligar o atualizador automático
+
+O app instalado só aceita atualizações assinadas. Adicione em **Settings → Secrets and variables → Actions**:
+
+- `TAURI_SIGNING_PRIVATE_KEY` — o conteúdo da chave privada (a pública já está em `src-tauri/tauri.conf.json`)
+- `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` — vazio (a chave foi gerada sem senha)
+
+Se perder a chave: `npx tauri signer generate -w rete.key`, troque o `pubkey` em `src-tauri/tauri.conf.json` pelo conteúdo de `rete.key.pub` e salve a nova privada no secret.
 
 ## Sincronização (Supabase)
 
-**Por que Supabase e não Firebase/Google Drive:** Postgres de verdade, login com Google pronto, tempo real, plano grátis generoso, código aberto (dá pra sair quando quiser) e — o motivo decisivo — agenda tarefas no servidor (`pg_cron` + Edge Functions) de graça, que é o caminho para o lembrete chegar com o app fechado. No Firebase isso exige plano pago.
-
-**Como funciona:** *local-first*. Tudo é salvo primeiro no aparelho; a nuvem só reconcilia. Conflito entre aparelhos: vence a edição mais recente (o servidor também ignora escritas antigas). Apagar vira "lápide" para propagar. Mudanças chegam nos outros aparelhos em tempo real.
-
-**Configurar (uma vez, ~10 min):**
-
-1. Crie um projeto em [supabase.com](https://supabase.com).
-2. **SQL Editor** → cole e rode [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql).
-3. **Project Settings → API**: copie *Project URL* e a chave *anon* para `.env.local` (e nas variáveis de ambiente da Vercel).
-4. **Authentication → URL Configuration**: em *Site URL* e *Redirect URLs*, coloque o endereço do app (ex.: `https://kairos.vercel.app`) e `http://localhost:5173`.
-5. **Login com Google:** no [Google Cloud Console](https://console.cloud.google.com/apis/credentials) crie um *OAuth client ID* (Web), com *Authorized redirect URI* = `https://SEU-PROJETO.supabase.co/auth/v1/callback`. Cole o Client ID e o Secret em **Authentication → Providers → Google**.
-6. O login por e-mail (link mágico) já vem ligado.
-
-## Versões, commits e releases
-
-Versionamento semântico automático a partir das mensagens de commit ([Conventional Commits](https://www.conventionalcommits.org/pt-br)):
-
-| commit | exemplo | versão |
-|---|---|---|
-| `fix:` | `fix(preview): thumbnail do Instagram` | 0.2.**1** |
-| `feat:` | `feat(atelier): fontes hebraicas` | 0.**3**.0 |
-| `feat!:` ou `BREAKING CHANGE:` | `feat!: novo formato de dados` | **1**.0.0 |
-| `docs:` `chore:` `refactor:` `test:` `ci:` | — | não gera versão |
-
-- **Hook local** (`.githooks/commit-msg`, ativado no `npm install`) recusa mensagens fora do padrão.
-- **CI** roda testes e build em todo PR e push na `main`; o título do PR também é validado.
-- **release-please** mantém um PR de release com a próxima versão e o `CHANGELOG.md`. Merge nele → tag `vX.Y.Z` + Release no GitHub.
-- **Vercel** publica a `main` → o app instalado se atualiza sozinho e mostra as notas da versão (lidas do `CHANGELOG.md`).
-
-## Publicar
-
-Importe o repositório na Vercel (detecta Vite; `api/preview.ts` vira função serverless). Defina `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY`. No celular: abrir o site → "Adicionar à tela inicial".
+1. Crie um projeto em [supabase.com](https://supabase.com) e rode [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql) no SQL Editor.
+2. Em **Authentication → URL Configuration → Redirect URLs**, adicione `rete://auth` (o login volta para o app por esse link).
+3. **Login com Google:** crie um *OAuth client* no Google Cloud com redirect `https://SEU-PROJETO.supabase.co/auth/v1/callback` e cole em **Authentication → Providers → Google**.
+4. Crie os secrets `VITE_SUPABASE_URL` e `VITE_SUPABASE_ANON_KEY` no GitHub (e num `.env.local` para desenvolver). A chave *anon* é pública por design: quem protege os dados é a segurança por usuário (RLS) do SQL.
 
 ## Estrutura
 
 ```
-server/preview.ts        extrai metadados de uma URL (dev e Vercel)
-api/preview.ts           função serverless GET /api/preview?url=
-src/model.ts             tipos, categorias, banco local, lembretes, .ics, prévia
-src/sync.ts · merge.ts   sincronização Supabase (login, puxa/empurra, tempo real)
-src/update.ts            atualização automática + notas da versão
-src/fonts.ts             catálogo tipográfico (61 fontes verificadas, suporte a grego/hebraico)
-src/prefs.ts             paletas, temas, preferências
-src/Atelier.tsx          painel de personalização
-src/App.tsx              astrolábio, oráculo, mural, painel do item, barra
-supabase/migrations/     esquema do banco + segurança por usuário (RLS)
-tests/                   node --test
+src-tauri/          casca nativa (Rust): bandeja, iniciar com o sistema, plugins, ícones
+src/native.ts       ponte com o sistema: notificações, prévia, área de transferência, links rete://
+src/spell.tsx       o feitiço das letras + numerais gregos
+src/prefs.ts        eras, pigmentos, alfabetos, preferências
+src/fonts.ts        catálogo de 75 fontes (verificadas no Google Fonts)
+src/App.tsx         astrolábio, oráculo, mural, pena, ficha
+src/Atelier.tsx     ateliê: eras, letras, pigmentos, ofício, conta, sobre
+src/sync.ts         sincronização (Supabase)
+src/update.ts       atualizador + diário de bordo
+server/preview.ts   leitor de metadados (Open Graph)
 ```
-
-## Próximos passos
-
-1. Lembrete com o app **fechado** via Web Push (Supabase Edge Function + `pg_cron`).
-2. Atalho do iOS para compartilhar no iPhone.
-3. Coleções manuais ("presentes", "setup do escritório").

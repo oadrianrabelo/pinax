@@ -1,4 +1,4 @@
-# Changelog
+# Diário de bordo
 
 ## [0.1.0](https://github.com/oadrianrabelo/agregador-links/releases/tag/v0.1.0) (2026-11-19)
 

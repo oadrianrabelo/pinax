@@ -1,19 +1,120 @@
-# A cada push na main, o release-please lê os commits (Conventional Commits) e mantém
-# um PR "chore(main): release x.y.z" com a versão e o CHANGELOG. Ao dar merge nele,
-# cria a tag vX.Y.Z e a Release no GitHub. A Vercel publica a main; o app instalado
-# se atualiza sozinho e mostra as novidades.
+# A cada push na main:
+#  1. semantic-release lê os commits (Conventional Commits), decide a versão,
+#     atualiza CHANGELOG.md e package.json, cria a tag vX.Y.Z e a Release.
+#  2. Se saiu versão nova, compila os instaladores e anexa à Release:
+#     Windows (.msi/.exe), macOS (.dmg universal), Linux (.deb/.AppImage/.rpm) e Android (.apk).
+#  3. Com a chave de assinatura configurada, publica latest.json → os apps
+#     instalados no computador se atualizam sozinhos.
 name: Release
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 permissions:
   contents: write
+  issues: write
   pull-requests: write
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
-  release-please:
+  version:
     runs-on: ubuntu-latest
+    outputs:
+      published: ${{ steps.sr.outputs.new_release_published }}
+      version: ${{ steps.sr.outputs.new_release_version }}
     steps:
-      - uses: googleapis/release-please-action@v4
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - id: sr
+        uses: cycjimmy/semantic-release-action@v4
         with:
-          config-file: release-please-config.json
-          manifest-file: .release-please-manifest.json
+          extra_plugins: |
+            @semantic-release/changelog@6
+            @semantic-release/git@10
+            conventional-changelog-conventionalcommits@8
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  desktop:
+    needs: version
+    if: needs.version.outputs.published == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: windows-latest, args: '' }
+          - { os: macos-latest, args: '--target universal-apple-darwin' }
+          - { os: ubuntu-22.04, args: '' }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: 'v${{ needs.version.outputs.version }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - if: matrix.os == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libxdo-dev
+      - run: npm ci
+      - name: Atualizador (só se a chave de assinatura existir)
+        shell: bash
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -n "$KEY" ]; then echo '{"bundle":{"createUpdaterArtifacts":true}}' > updater.conf.json; else echo '{}' > updater.conf.json; fi
+      - uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: v${{ needs.version.outputs.version }}
+          releaseName: Rete v${{ needs.version.outputs.version }}
+          releaseDraft: false
+          prerelease: false
+          includeUpdaterJson: true
+          args: ${{ matrix.args }} --config updater.conf.json
+
+  android:
+    needs: version
+    if: needs.version.outputs.published == 'true'
+    runs-on: ubuntu-latest
+    env:
+      NDK_VERSION: 27.0.12077973
+    steps:
+      - uses: actions/checkout@v4
+        with: { ref: 'v${{ needs.version.outputs.version }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: '17' }
+      - uses: android-actions/setup-android@v3
+      - run: sdkmanager "ndk;${NDK_VERSION}" "platforms;android-34" "build-tools;34.0.0"
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: 'aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android,i686-linux-android' }
+      - uses: swatinem/rust-cache@v2
+        with: { workspaces: src-tauri }
+      - run: npm ci
+      - name: Compilar APK
+        env:
+          NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/${{ env.NDK_VERSION }}
+        run: |
+          export NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+          npx tauri android init --ci
+          npx tauri android build --apk --debug --target aarch64 --target armv7
+      - name: Anexar à Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          APK=$(find src-tauri/gen/android -name '*.apk' | head -n1)
+          cp "$APK" "Rete_${{ needs.version.outputs.version }}_android.apk"
+          gh release upload "v${{ needs.version.outputs.version }}" "Rete_${{ needs.version.outputs.version }}_android.apk" --clobber
