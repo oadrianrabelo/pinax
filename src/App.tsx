@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, loadPreview, relative, store,
   type Item, type Kind,
@@ -34,6 +34,7 @@ export default function App() {
   itemsRef.current = items
   const era = ERAS[prefs.era]
 
+  const pickFilter = useCallback((k: Kind | null) => { setFilter(k); setView('agora') }, [])
   const say = useCallback((t: string) => { setToast(t); setTimeout(() => setToast((c) => (c === t ? null : c)), 2800) }, [])
 
   const save = useCallback(async (raw: Item) => {
@@ -98,6 +99,29 @@ export default function App() {
 
   useEffect(() => { if (prefs.updatedAt) scheduleSync() }, [prefs.updatedAt])
 
+  // Botão voltar (Android): fecha uma camada por vez; na tela inicial, toque duas vezes para sair
+  const ui = useRef({ news, open, atelier, offer, searching, query, filter, view })
+  ui.current = { news, open, atelier, offer, searching, query, filter, view }
+  useEffect(() => {
+    if (!isNative || !isMobile) return
+    let lastBack = 0
+    let off: { unregister: () => Promise<void> } | undefined
+    import('@tauri-apps/api/app').then(({ onBackButtonPress }) => onBackButtonPress(async () => {
+      const u = ui.current
+      if (u.news) return setNews(null)
+      if (u.open) return setOpen(null)
+      if (u.atelier) return setAtelier(false)
+      if (u.offer) return setOffer(null)
+      if (u.searching || u.query) { setQuery(''); setSearching(false); return }
+      if (u.filter || u.view !== 'agora') { setFilter(null); setView('agora'); return }
+      if (scrollY > 200) { scrollTo({ top: 0, behavior: 'smooth' }); return }
+      if (Date.now() - lastBack < 2000) { const { exit } = await import('@tauri-apps/plugin-process'); return exit(0) }
+      lastBack = Date.now()
+      say('Toque de novo em voltar para sair')
+    })).then((l) => { off = l })
+    return () => { off?.unregister() }
+  }, [say])
+
   // colar em qualquer lugar / arrastar link pra janela
   useEffect(() => {
     const typing = (e: Event) => (e.target as HTMLElement)?.closest?.('input, textarea')
@@ -153,7 +177,7 @@ export default function App() {
       .sort((a, b) => Number(isDue(b)) - Number(isDue(a)) || b.createdAt - a.createdAt)
   }, [items, filter, view, query])
 
-  const pending = items.filter((i) => !i.doneAt)
+  const pending = useMemo(() => items.filter((i) => !i.doneAt), [items])
   const due = pending.filter(isDue)
   const counts = useMemo(() => Object.fromEntries(KIND_IDS.map((k) => [k, pending.filter((i) => i.kind === k).length])), [pending])
   const current = items.find((i) => i.id === open) ?? null
@@ -180,7 +204,7 @@ export default function App() {
         </div>
         {prefs.astrolabe && (
           <Astrolabe items={pending} filter={filter} counts={counts} dueCount={due.length}
-            onFilter={(k) => { setFilter(k); setView('agora') }} onPick={setOpen} />
+            onFilter={pickFilter} onPick={setOpen} />
         )}
       </header>
 
@@ -208,7 +232,7 @@ export default function App() {
         </div>
 
         <div className="mural">
-          {visible.map((i) => <Leaf key={i.id} item={i} n={order.get(i.id) ?? 0} onClick={() => setOpen(i.id)} />)}
+          {visible.map((i) => <Leaf key={i.id} item={i} n={order.get(i.id) ?? 0} onOpen={setOpen} />)}
           {ready && visible.length === 0 && (
             <div className="empty">
               <span className="script">{filter ? KINDS[filter].sigil : view === 'feitos' ? '✓' : '∅'}</span>
@@ -264,7 +288,7 @@ export default function App() {
 }
 
 // ——— Astrolábio: a navegação. As categorias ficam no limbo; os links são estrelas na rete. ———
-function Astrolabe({ items, filter, counts, dueCount, onFilter, onPick }: {
+const Astrolabe = memo(function Astrolabe({ items, filter, counts, dueCount, onFilter, onPick }: {
   items: Item[]; filter: Kind | null; counts: Record<string, number>; dueCount: number
   onFilter: (k: Kind | null) => void; onPick: (id: string) => void
 }) {
@@ -336,7 +360,7 @@ function Astrolabe({ items, filter, counts, dueCount, onFilter, onPick }: {
       </g>
     </svg>
   )
-}
+})
 
 // ——— Oráculo: a cada abertura, uma carta diferente ———
 function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string) => void; onDone: (id: string) => void }) {
@@ -403,13 +427,14 @@ function art(i: Item): React.CSSProperties {
 }
 
 // ——— Folha: uma entrada do catálogo ———
-function Leaf({ item: i, n, onClick }: { item: Item; n: number; onClick: () => void }) {
+const Leaf = memo(function Leaf({ item: i, n, onOpen }: { item: Item; n: number; onOpen: (id: string) => void }) {
+  const onClick = () => onOpen(i.id)
   const k = KINDS[i.kind]
   const [broken, setBroken] = useState(false)
   return (
     <article className={'leaf ' + (isDue(i) ? 'due ' : '') + (i.loading ? 'loading' : '')} onClick={onClick} tabIndex={0} onKeyDown={(e) => e.key === 'Enter' && onClick()}>
       <figure className="plate" style={art(i)}>
-        {i.image && !broken ? <img src={i.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} /> : <b className="script">{k.sigil}</b>}
+        {i.image && !broken ? <img src={i.image} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer" onError={() => setBroken(true)} /> : <b className="script">{k.sigil}</b>}
         {i.price && <span className="price">{i.price}</span>}
       </figure>
       <div className="caption">
@@ -420,7 +445,7 @@ function Leaf({ item: i, n, onClick }: { item: Item; n: number; onClick: () => v
       </div>
     </article>
   )
-}
+})
 
 // ——— Pena: a forma de escrever na rede ———
 function Quill({ onAdd }: { onAdd: (url: string) => void }) {

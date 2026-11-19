@@ -119,13 +119,32 @@ export function fontById(id: string): Font {
 export const stack = (font: Font, role: Role) =>
   `"${font.family}", ${role === 'sigil' || role === 'spell' ? '"GFS Didot", ' : ''}${role === 'mono' ? FALLBACK.mono : FALLBACK[font.cat]}`
 
+// Fontes pedidas no mesmo instante saem num único <link> (um só recálculo de estilo).
 const loaded = new Set<string>()
+const queue = new Map<string, Set<string>>() // texto do recorte → specs
+let scheduled = false
+function flush() {
+  scheduled = false
+  for (const [text, specs] of queue) {
+    const known = [...specs].filter((sp) => FONTS.some((f) => f.spec === sp))
+    const custom = [...specs].filter((sp) => !known.includes(sp))
+    // fontes digitadas à mão vão sozinhas: um nome errado não derruba as outras
+    for (const group of [known, ...custom.map((c) => [c])]) {
+      if (!group.length) continue
+      const l = document.createElement('link')
+      l.rel = 'stylesheet'
+      l.href = 'https://fonts.googleapis.com/css2?' + group.map((sp) => 'family=' + sp).join('&') + (text ? '&text=' + encodeURIComponent(text) : '') + '&display=swap'
+      document.head.appendChild(l)
+    }
+  }
+  queue.clear()
+}
 export function loadFont(font: Font, text?: string) {
   const key = font.spec + (text ?? '')
   if (loaded.has(key) || loaded.has(font.spec)) return
   loaded.add(key)
-  const l = document.createElement('link')
-  l.rel = 'stylesheet'
-  l.href = `https://fonts.googleapis.com/css2?family=${font.spec}${text ? '&text=' + encodeURIComponent(text) : ''}&display=swap`
-  document.head.appendChild(l)
+  const t = text ?? ''
+  if (!queue.has(t)) queue.set(t, new Set())
+  queue.get(t)!.add(font.spec)
+  if (!scheduled) { scheduled = true; queueMicrotask(flush) }
 }
