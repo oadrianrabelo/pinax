@@ -22,11 +22,13 @@ export function Spell({ text, as: Tag = 'span', className, delay = 0, speed = 1,
       cleanup.forEach((f) => f()); cleanup = []
       if (!prefs.motion || matchMedia('(prefers-reduced-motion: reduce)').matches) return
       const spans = [...el.querySelectorAll<HTMLSpanElement>('.g')]
+      // lê todas as larguras de uma vez, depois escreve (evita recalcular o layout letra a letra)
+      const widths = spans.map((s) => s.getBoundingClientRect().width)
       spans.forEach((s, i) => {
         const final = s.dataset.c!
         const ancient = counterpart(final, script)
         if (!final.trim()) return
-        s.style.width = s.getBoundingClientRect().width + 'px'
+        s.style.width = widths[i] + 'px'
         const start = delay + i * 75 * speed
         const dur = 1000 * speed
         s.textContent = ancient

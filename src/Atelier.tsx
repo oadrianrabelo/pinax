@@ -14,6 +14,9 @@ const TABS: [Tab, string, string][] = [['eras', 'I', 'Eras'], ['letras', 'II', '
 export default function Atelier({ items, onClose, onImport }: { items: Item[]; onClose: () => void; onImport: (xs: Item[]) => void }) {
   const [tab, setTab] = useState<Tab>(() => { try { return (localStorage.getItem('rete:tab') as Tab) || 'eras' } catch { return 'eras' } })
   useEffect(() => { try { localStorage.setItem('rete:tab', tab) } catch {} }, [tab])
+  // o painel começa a deslizar já no primeiro quadro; o conteúdo entra no seguinte
+  const [shown, setShown] = useState(false)
+  useEffect(() => { const r = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true))); return () => cancelAnimationFrame(r) }, [])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   return (
     <div className="scrim" onClick={onClose}>
@@ -32,12 +35,14 @@ export default function Atelier({ items, onClose, onImport }: { items: Item[]; o
           ))}
         </nav>
         <div className="atelier-body">
+          {!shown ? null : <>
           {tab === 'eras' && <Eras />}
           {tab === 'letras' && <Letters />}
           {tab === 'pigmentos' && <Pigments />}
           {tab === 'oficio' && <Craft />}
           {tab === 'conta' && <Account />}
           {tab === 'sobre' && <About items={items} onImport={onImport} />}
+          </>}
         </div>
       </aside>
     </div>
@@ -49,7 +54,7 @@ function Eras() {
   const ids = Object.keys(ERAS)
   const [focus, setFocus] = useState(ERAS[p.era] ? p.era : 'delfos')
   const e = ERAS[focus]
-  useEffect(() => { for (const x of Object.values(ERAS)) loadFont(fontById(x.display), x.name + x.year) }, [])
+  useEffect(() => { const all = Object.values(ERAS).map((x) => x.name + x.year).join(''); for (const x of Object.values(ERAS)) loadFont(fontById(x.display), all) }, [])
   useEffect(() => { loadFont(fontById(e.body)); loadFont(fontById(e.sigil)); loadFont(fontById(SCRIPTS[e.script].font)) }, [e])
   const pal = PALETTES[e.palette]
   return (
@@ -105,7 +110,7 @@ function Letters() {
   const [custom, setCustom] = useState('')
   const r = ROLES.find((x) => x.role === role)!
   const list = role === 'spell' ? [] : FONTS.filter((f) => f.roles.includes(role as Role) && (!cat || f.cat === cat))
-  useEffect(() => { list.forEach((f) => loadFont(f, r.sample + f.family)); if (role === 'spell') Object.values(SCRIPTS).forEach((s) => loadFont(fontById(s.font))) }, [role, cat]) // eslint-disable-line
+  useEffect(() => { const all = r.sample + list.map((f) => f.family).join(''); list.forEach((f) => loadFont(f, all)); if (role === 'spell') Object.values(SCRIPTS).forEach((s) => loadFont(fontById(s.font))) }, [role, cat]) // eslint-disable-line
   const cats = role === 'spell' ? [] : CATS.filter((c) => FONTS.some((f) => f.roles.includes(role as Role) && f.cat === c))
   return (
     <>
