@@ -1,6 +1,6 @@
 import { defineConfig, type Connect } from 'vite'
 import react from '@vitejs/plugin-react'
-import { fetchPreview } from './server/preview'
+import { fetchPreview } from './src/core/preview'
 import pkg from './package.json'
 
 // Só para desenvolvimento no navegador: no app nativo a prévia é buscada direto pelo Tauri.

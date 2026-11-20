@@ -26,7 +26,7 @@
   --leaf: color-mix(in srgb, var(--ink-2) 92%, var(--paper));
   --ease: cubic-bezier(.2, .8, .2, 1);
   --squiggle: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 120 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.5 C 14 2, 22 7, 36 4.2 S 60 2.5, 74 5 S 100 6.5, 119 3' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'/%3E%3C/svg%3E");
-  --torn: polygon(0 6px, 4% 2px, 9% 5px, 15% 1px, 22% 4px, 30% 0, 37% 5px, 45% 2px, 52% 6px, 60% 1px, 68% 4px, 75% 0, 83% 5px, 90% 2px, 96% 5px, 100% 1px, 100% 100%, 0 100%);
+ 
   color-scheme: dark;
 }
 :root[data-dark="false"] { --leaf: color-mix(in srgb, var(--ink-2) 75%, white); }

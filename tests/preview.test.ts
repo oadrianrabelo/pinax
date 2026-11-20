@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { parseHtml } from '../server/preview.ts'
+import { parseHtml } from '../src/core/preview.ts'
 
 test('lê Open Graph, decodifica entidades e resolve URLs relativas', () => {
   const html = `<title>T &amp; t</title>

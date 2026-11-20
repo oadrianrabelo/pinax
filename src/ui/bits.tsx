@@ -1,5 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from 'react'
-import { hash } from './model'
+import { hash } from '../core/model'
 
 // Trechos em grego/hebraico/aramaico ganham a fonte "dos sigilos" automaticamente
 export function Scripts({ text }: { text: string }) {

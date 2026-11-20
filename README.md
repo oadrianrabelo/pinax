@@ -3,8 +3,8 @@
 > *rēte*, latim: “rede”. No astrolábio, a **rete** é a placa vazada que guarda o mapa das estrelas e gira sobre o céu.
 > Aqui ela guarda os seus links — compras, leituras, vídeos, coleções — e gira até trazer cada um de volta na hora certa.
 
-<p align="center"><img src="docs/delfos.png" width="49%"> <img src="docs/eras.png" width="49%"></p>
-<p align="center"><img src="docs/feitico.png" width="49%"> <img src="docs/yerushalayim.png" width="49%"></p>
+<p align="center"><img src="docs/mural.jpg" width="49%"> <img src="docs/yerushalayim.jpg" width="49%"></p>
+<p align="center"><img src="docs/feitico.jpg" width="56%"> <img src="docs/eras.jpg" width="42%"></p>
 
 ## O que tem
 
@@ -80,14 +80,25 @@ Se perder a chave do atualizador: `npx tauri signer generate -w rete.key`, troqu
 ## Estrutura
 
 ```
-src-tauri/          casca nativa (Rust): bandeja, iniciar com o sistema, plugins, ícones
-src/native.ts       ponte com o sistema: notificações, prévia, área de transferência, links rete://
-src/spell.tsx       o feitiço das letras + numerais gregos
-src/prefs.ts        eras, pigmentos, alfabetos, preferências
-src/fonts.ts        catálogo de 75 fontes (verificadas no Google Fonts)
-src/App.tsx         astrolábio, oráculo, mural, pena, ficha
-src/Atelier.tsx     ateliê: eras, letras, pigmentos, ofício, conta, sobre
-src/sync.ts         sincronização (Supabase)
-src/update.ts       atualizador + diário de bordo
-server/preview.ts   leitor de metadados (Open Graph)
+src/
+  main.tsx            ponto de entrada
+  styles.css          todo o visual (variáveis da era em :root)
+  ui/                 interface
+    App.tsx           astrolábio, oráculo, mural, pena, ficha, botão voltar
+    Atelier.tsx       ateliê: eras, letras, pigmentos, ofício, conta, sobre
+    spell.tsx         o feitiço das letras + numerais gregos
+    bits.tsx          lacre, escolhas em frase, trechos em grego/hebraico
+  core/               lógica, sem interface
+    model.ts          itens, categorias, banco local (IndexedDB), lembretes
+    prefs.ts          eras, pigmentos, alfabetos, preferências
+    fonts.ts          catálogo de 75 fontes (verificadas no Google Fonts)
+    native.ts         ponte com o sistema: notificações, prévia, área de transferência, rete://
+    preview.ts        leitor de metadados (Open Graph)
+    sync.ts merge.ts  sincronização (Supabase)
+    update.ts         atualizador + diário de bordo
+src-tauri/            casca nativa (Rust): bandeja, iniciar com o sistema, plugins, ícones
+supabase/migrations/  banco da sincronização, com segurança por usuário (RLS)
+tests/                node --test
+docs/                 imagens do README
+.github/              CI, releases, Android, modelos de PR e issue
 ```

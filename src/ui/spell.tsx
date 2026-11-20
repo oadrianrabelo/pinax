@@ -1,5 +1,5 @@
 import { useLayoutEffect, useRef, type ElementType } from 'react'
-import { activeScript, counterpart, usePrefs } from './prefs'
+import { activeScript, counterpart, usePrefs } from '../core/prefs'
 
 /**
  * Feitiço: a palavra aparece primeiro escrita no alfabeto antigo da era — cada letra é a
