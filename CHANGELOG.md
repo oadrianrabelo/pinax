@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.2.2](https://github.com/oadrianrabelo/agregador-links/compare/v0.2.1...v0.2.2) (2026-11-20)
+
+### Correções
+
+* app fluido no celular e botão voltar que não fecha o app ([#4](https://github.com/oadrianrabelo/agregador-links/issues/4)) ([be75e0f](https://github.com/oadrianrabelo/agregador-links/commit/be75e0f94e28da2570e47133e7e0f5c792d4b5cd))
+
 ## [0.2.1](https://github.com/oadrianrabelo/agregador-links/compare/v0.2.0...v0.2.1) (2026-11-19)
 
 ### Correções
