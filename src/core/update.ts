@@ -1,7 +1,7 @@
 // Atualizações: no computador, o atualizador nativo (assinado) baixa e instala em silêncio;
 // no celular, avisa quando há um APK novo na página de releases.
 import { useSyncExternalStore } from 'react'
-import changelog from '../CHANGELOG.md?raw'
+import changelog from '../../CHANGELOG.md?raw'
 import { isDesktopApp, isNative, openExternal } from './native'
 
 export const VERSION: string = __APP_VERSION__

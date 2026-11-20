@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mergeRow, toRow } from '../src/merge.ts'
+import { mergeRow, toRow } from '../src/core/merge.ts'
 
 const base = { id: 'a', url: 'https://x.com', kind: 'outro' as const, createdAt: 1 }
 const row = (updated_at: number, deleted = false, data: object = {}) =>

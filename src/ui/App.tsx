@@ -2,11 +2,11 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, loadPreview, relative, store,
   type Item, type Kind,
-} from './model'
-import { ERAS, usePrefs } from './prefs'
-import { initSync, scheduleSync, useSync } from './sync'
-import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from './update'
-import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, readClipboard, scheduleReminder, setAutostart } from './native'
+} from '../core/model'
+import { ERAS, usePrefs } from '../core/prefs'
+import { initSync, scheduleSync, useSync } from '../core/sync'
+import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from '../core/update'
+import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, readClipboard, scheduleReminder, setAutostart } from '../core/native'
 import { Spell, greekNumeral } from './spell'
 import { Choice, Notes, Scripts, Seal } from './bits'
 import Atelier from './Atelier'

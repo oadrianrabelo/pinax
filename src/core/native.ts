@@ -1,5 +1,5 @@
 // Ponte com o sistema (Tauri). No navegador (desenvolvimento), cai em equivalentes web.
-import { parseHtml, type Preview } from '../server/preview'
+import { parseHtml, type Preview } from './preview'
 
 export const isNative = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 export const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent)
