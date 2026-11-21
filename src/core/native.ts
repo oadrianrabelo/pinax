@@ -107,3 +107,34 @@ export async function setAutostart(on: boolean) {
   const a = await import('@tauri-apps/plugin-autostart')
   return on ? a.enable() : a.disable()
 }
+
+// ——— "Compartilhar" do Android (ver src-tauri/android/ReteShare.kt) ———
+export type Shared =
+  | { type: 'text'; text: string; subject?: string }
+  | { type: 'file'; path: string; mime: string; name: string; size: number; thumb: string | null; text?: string }
+
+type Bridge = { take(): string; open(path: string): void; remove(path: string): void }
+const bridge = () => (window as unknown as { ReteShare?: Bridge }).ReteShare
+
+/** Entrega o que outros apps compartilharam com o Rete — ao abrir e sempre que chegar algo novo. */
+export function onShare(cb: (items: Shared[]) => void) {
+  const take = () => {
+    const b = bridge()
+    if (!b) return
+    try { const xs = JSON.parse(b.take()) as Shared[]; if (xs.length) cb(xs) } catch {}
+  }
+  window.addEventListener('rete-share', take)
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') take() })
+  take()
+}
+
+/** Abre uma foto/vídeo/arquivo guardado com o app do sistema. */
+export const openMedia = (path: string) => bridge()?.open(path)
+/** Apaga o arquivo de um item esquecido. */
+export const removeMedia = (path: string) => bridge()?.remove(path)
+
+/** Abre um item: link no navegador, arquivo no app do sistema. */
+export function openItem(i: { url: string; media?: { path: string } }) {
+  if (i.media) return openMedia(i.media.path)
+  return openExternal(i.url)
+}
