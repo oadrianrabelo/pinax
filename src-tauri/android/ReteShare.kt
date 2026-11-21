@@ -21,6 +21,9 @@ import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
 import android.webkit.WebView
 import androidx.core.content.FileProvider
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -38,6 +41,7 @@ object ReteShare {
         activity = a
         webView = w
         w.addJavascriptInterface(Bridge, "ReteShare")
+        watchInsets(w)
         receive(a, a.intent)
     }
 
@@ -68,6 +72,32 @@ object ReteShare {
             }
             synchronized(pending) { for (i in 0 until items.length()) pending.put(items.get(i)) }
             a.runOnUiThread { webView?.evaluateJavascript("window.dispatchEvent(new Event('rete-share'))", null) }
+        }
+    }
+
+    // ——— barras do sistema (status em cima, navegação embaixo, recorte da câmera) ———
+    // O app é desenhado de ponta a ponta; a página recebe a altura das barras em px CSS
+    // para reservar o espaço (o WebView do Android não informa isso por env(safe-area-*)).
+    @Volatile private var insetsJson = "{}"
+
+    private fun watchInsets(w: WebView) {
+        ViewCompat.setOnApplyWindowInsetsListener(w) { v, insets ->
+            val b = insets.getInsets(WindowInsetsCompat.Type.systemBars() or WindowInsetsCompat.Type.displayCutout())
+            val d = v.resources.displayMetrics.density
+            insetsJson = JSONObject().put("top", b.top / d).put("bottom", b.bottom / d)
+                .put("left", b.left / d).put("right", b.right / d).toString()
+            v.post { (v as WebView).evaluateJavascript("window.dispatchEvent(new Event('rete-insets'))", null) }
+            insets
+        }
+        ViewCompat.requestApplyInsets(w)
+    }
+
+    private fun setBars(a: Activity, darkBackground: Boolean) {
+        a.runOnUiThread {
+            val c = WindowCompat.getInsetsController(a.window, a.window.decorView)
+            // fundo claro → ícones escuros (e vice-versa)
+            c.isAppearanceLightStatusBars = !darkBackground
+            c.isAppearanceLightNavigationBars = !darkBackground
         }
     }
 
@@ -168,6 +198,17 @@ object ReteShare {
         fun open(path: String) {
             val a = activity ?: return
             a.runOnUiThread { openFile(a, path) }
+        }
+
+        /** Altura das barras do sistema, em px CSS: {top, bottom, left, right}. */
+        @JavascriptInterface
+        fun insets(): String = insetsJson
+
+        /** A era tem fundo escuro? Ajusta a cor dos ícones da barra de status e de navegação. */
+        @JavascriptInterface
+        fun bars(darkBackground: Boolean) {
+            val a = activity ?: return
+            setBars(a, darkBackground)
         }
 
         /** Apaga o arquivo de um item esquecido. */
