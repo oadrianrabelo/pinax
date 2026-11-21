@@ -1,5 +1,8 @@
-# Compila o APK de uma versão já publicada e anexa à Release dela.
-# Chamado pelo release.yml, ou à mão (Actions → Android → Run workflow → versão).
+# Compila o APK.
+#  - Chamado pelo release.yml com a versão nova → anexa à Release.
+#  - À mão (Actions → Android → Run workflow):
+#      versão = 0.2.2  → recompila e substitui o APK dessa Release
+#      ref    = branch → APK de teste, baixável nos artefatos da execução (não publica nada)
 name: Android
 on:
   workflow_call:
@@ -7,15 +10,19 @@ on:
       version: { type: string, required: true }
   workflow_dispatch:
     inputs:
-      version: { description: 'Versão (ex.: 0.2.0)', type: string, required: true }
+      version: { description: 'Versão publicada (ex.: 0.2.2)', type: string, required: false }
+      ref: { description: 'Ou um branch, para um APK de teste', type: string, required: false }
 permissions:
   contents: write
 jobs:
   apk:
     runs-on: ubuntu-latest
+    env:
+      TEST_REF: ${{ inputs.ref }}
+      VERSION: ${{ inputs.version }}
     steps:
       - uses: actions/checkout@v4
-        with: { ref: 'v${{ inputs.version }}' }
+        with: { ref: "${{ inputs.ref || format('v{0}', inputs.version) }}" }
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: npm }
       - uses: actions/setup-java@v4
@@ -25,10 +32,14 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with: { workspaces: src-tauri }
       - run: npm ci
-      - name: Compilar APK (modo de produção, um por processador)
+      - name: Gerar o projeto Android e encaixar o Rete (compartilhar, arquivos)
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           npx tauri android init --ci
+          if [ -f scripts/android-patch.mjs ]; then node scripts/android-patch.mjs; fi
+      - name: Compilar APK (modo de produção, um por processador)
+        run: |
+          export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           npx tauri android build --apk --split-per-abi --target aarch64 --target armv7
       - name: Assinar
         env:
@@ -40,13 +51,12 @@ jobs:
             echo "$KEYSTORE_B64" | base64 -d > rete.keystore
             PASS="$KEYSTORE_PASSWORD"
           else
-            # Sem chave fixa: assina com uma chave descartável (instala, mas a próxima versão pede reinstalar)
             echo "::warning::ANDROID_KEYSTORE_BASE64 não configurado — APK assinado com chave temporária"
             PASS=temporaria
             keytool -genkeypair -keystore rete.keystore -storepass "$PASS" -keypass "$PASS" -alias rete \
               -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Rete" >/dev/null
           fi
-          V="${{ inputs.version }}"
+          V="${VERSION:-teste}"
           for abi in arm64 arm; do
             IN=$(find src-tauri/gen/android -path "*/$abi/release/*.apk" | head -n1)
             [ -z "$IN" ] && { echo "APK $abi não encontrado"; find src-tauri/gen/android -name '*.apk'; exit 1; }
@@ -56,8 +66,14 @@ jobs:
             ls -lh "$NAME"
           done
       - name: Anexar à Release
+        if: ${{ !inputs.ref }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          V="${{ inputs.version }}"
-          gh release upload "v$V" "Rete_${V}_android.apk" "Rete_${V}_android-armv7.apk" --clobber
+        run: gh release upload "v${VERSION}" "Rete_${VERSION}_android.apk" "Rete_${VERSION}_android-armv7.apk" --clobber
+      - name: APK de teste (artefato)
+        if: ${{ inputs.ref }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Rete-teste-android
+          path: Rete_teste_android*.apk
+          retention-days: 7

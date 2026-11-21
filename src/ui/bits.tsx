@@ -1,4 +1,4 @@
-import type { ButtonHTMLAttributes, ReactNode } from 'react'
+import { useEffect, useRef, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { hash } from '../core/model'
 
 // Trechos em grego/hebraico/aramaico ganham a fonte "dos sigilos" automaticamente
@@ -49,4 +49,72 @@ export function Choice<T extends string | number | boolean>({ value, options, on
       ))}
     </span>
   )
+}
+
+/**
+ * Folha (ficha, ateliê): trava a página de trás enquanto está aberta e fecha
+ * ao ser arrastada para baixo — só quando o conteúdo de dentro já está no topo,
+ * para não brigar com a rolagem da própria folha.
+ */
+export function useSheet<T extends HTMLElement>(onClose: () => void) {
+  const ref = useRef<T>(null)
+  const close = useRef(onClose)
+  close.current = onClose
+
+  useEffect(() => {
+    const html = document.documentElement
+    const locks = Number(html.dataset.locks || 0) + 1
+    html.dataset.locks = String(locks)
+    html.classList.add('locked')
+    return () => {
+      const left = Math.max(0, Number(html.dataset.locks || 1) - 1)
+      html.dataset.locks = String(left)
+      if (!left) html.classList.remove('locked')
+    }
+  }, [])
+
+  useEffect(() => {
+    const el = ref.current
+    if (!el) return
+    let y0 = 0, dy = 0, t0 = 0, dragging = false
+    // a área que rola de verdade sob o dedo (a folha ou algo dentro dela)
+    const scroller = (target: EventTarget | null) => {
+      for (let n = target as HTMLElement | null; n && n !== el.parentElement; n = n.parentElement) {
+        if (n.scrollHeight > n.clientHeight + 1 && /auto|scroll/.test(getComputedStyle(n).overflowY)) return n
+      }
+      return el
+    }
+    const start = (e: TouchEvent) => {
+      dragging = scroller(e.target).scrollTop <= 0
+      y0 = e.touches[0].clientY; dy = 0; t0 = Date.now()
+    }
+    const move = (e: TouchEvent) => {
+      if (!dragging) return
+      dy = e.touches[0].clientY - y0
+      if (dy <= 0) { el.style.transform = ''; if (dy < -6) dragging = false; return }
+      e.preventDefault()
+      el.style.transition = 'none'
+      el.style.transform = `translateY(${dy}px)`
+    }
+    const end = () => {
+      if (!dragging) return
+      dragging = false
+      const flick = dy > 40 && Date.now() - t0 < 260
+      el.style.transition = 'transform .28s cubic-bezier(.2,.8,.2,1)'
+      if (dy > 110 || flick) { el.style.transform = 'translateY(110%)'; setTimeout(() => close.current(), 220) }
+      else el.style.transform = ''
+    }
+    el.addEventListener('touchstart', start, { passive: true })
+    el.addEventListener('touchmove', move, { passive: false })
+    el.addEventListener('touchend', end)
+    el.addEventListener('touchcancel', end)
+    return () => {
+      el.removeEventListener('touchstart', start)
+      el.removeEventListener('touchmove', move)
+      el.removeEventListener('touchend', end)
+      el.removeEventListener('touchcancel', end)
+    }
+  }, [])
+
+  return ref
 }

@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 import { fetchPreview } from './native'
 
-export type Kind = 'compra' | 'leitura' | 'video' | 'colecao' | 'outro'
+export type Kind = 'compra' | 'leitura' | 'video' | 'imagem' | 'colecao' | 'outro'
 
 export interface Item {
   id: string
@@ -19,6 +19,8 @@ export interface Item {
   notifiedAt?: number
   doneAt?: number
   loading?: boolean
+  // foto, vídeo ou arquivo recebido pelo "Compartilhar" (fica guardado no aparelho)
+  media?: { path: string; mime: string; name: string; size: number }
   // sincronização
   updatedAt?: number   // relógio do "último a escrever vence"
   deletedAt?: number   // lápide: apagar também precisa viajar entre aparelhos
@@ -30,6 +32,7 @@ export const KINDS: Record<Kind, { sigil: string; label: string; one: string; wo
   compra:  { sigil: 'χ', label: 'Desejos',  one: 'um desejo',     word: 'χρῆμα',   meaning: 'coisa útil, um bem' },
   leitura: { sigil: 'λ', label: 'Leituras', one: 'uma leitura',   word: 'λόγος',   meaning: 'palavra, razão' },
   video:   { sigil: 'θ', label: 'Visões',   one: 'uma visão',     word: 'θέα',     meaning: 'visão, espetáculo (raiz de “teatro”)' },
+  imagem:  { sigil: 'ε', label: 'Imagens',  one: 'uma imagem',    word: 'εἰκών',   meaning: 'imagem, retrato (origem de “ícone”)' },
   colecao: { sigil: 'σ', label: 'Coleções', one: 'uma coleção',   word: 'συλλογή', meaning: 'reunião, coleta' },
   outro:   { sigil: 'ξ', label: 'Outros',   one: 'outra coisa',   word: 'ξένος',   meaning: 'o estrangeiro, o diferente' },
 }
@@ -74,7 +77,26 @@ export function canon(url: string) {
   } catch { return url }
 }
 
-export const host = (url: string) => { try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
+export const host = (url: string) => { if (!url) return ''; try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
+
+/** De onde a coisa veio, para mostrar no lugar do domínio. */
+export function origin(i: Item) {
+  if (!i.media) return i.site || host(i.url) || 'nota'
+  const m = i.media.mime
+  return m.startsWith('image/') ? 'foto' : m.startsWith('video/') ? 'vídeo' : m === 'application/pdf' ? 'pdf' : 'arquivo'
+}
+
+/** Nome do item quando ele não tem título. */
+export function label(i: Item) {
+  return i.title || (i.media ? i.media.name : host(i.url)) || 'sem título'
+}
+
+export function mediaKind(mime: string): Kind {
+  if (mime.startsWith('image/')) return 'imagem'
+  if (mime.startsWith('video/')) return 'video'
+  if (mime === 'application/pdf' || mime.startsWith('text/')) return 'leitura'
+  return 'outro'
+}
 
 // ——— Persistência local (IndexedDB) ———
 const db = openDB('rete', 1, { upgrade: (d) => d.createObjectStore('items', { keyPath: 'id' }) })

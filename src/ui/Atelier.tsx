@@ -5,7 +5,7 @@ import { signInEmail, signInGoogle, signOut, syncNow, useSync } from '../core/sy
 import { VERSION, applyUpdate, checkForUpdate, releases, useUpdate } from '../core/update'
 import { relative, type Item } from '../core/model'
 import { getAutostart, isDesktopApp, isNative, setAutostart } from '../core/native'
-import { Choice, Notes, Scripts, Seal } from './bits'
+import { Choice, Notes, Scripts, Seal, useSheet } from './bits'
 import { Spell } from './spell'
 
 type Tab = 'eras' | 'letras' | 'pigmentos' | 'oficio' | 'conta' | 'sobre'
@@ -16,11 +16,12 @@ export default function Atelier({ items, onClose, onImport }: { items: Item[]; o
   useEffect(() => { try { localStorage.setItem('rete:tab', tab) } catch {} }, [tab])
   // o painel começa a deslizar já no primeiro quadro; o conteúdo entra no seguinte
   const [shown, setShown] = useState(false)
+  const sheet = useSheet<HTMLElement>(onClose)
   useEffect(() => { const r = requestAnimationFrame(() => requestAnimationFrame(() => setShown(true))); return () => cancelAnimationFrame(r) }, [])
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   return (
     <div className="scrim" onClick={onClose}>
-      <aside className="sheet atelier" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ateliê">
+      <aside ref={sheet} className="sheet atelier" onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ateliê">
         <div className="grip" />
         <header className="atelier-head">
           <div>

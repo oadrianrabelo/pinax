@@ -1,14 +1,14 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, loadPreview, relative, store,
+  KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, label, loadPreview, mediaKind, origin, relative, store,
   type Item, type Kind,
 } from '../core/model'
 import { ERAS, usePrefs } from '../core/prefs'
 import { initSync, scheduleSync, useSync } from '../core/sync'
 import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from '../core/update'
-import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, readClipboard, scheduleReminder, setAutostart } from '../core/native'
+import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
 import { Spell, greekNumeral } from './spell'
-import { Choice, Notes, Scripts, Seal } from './bits'
+import { Choice, Notes, Scripts, Seal, useSheet } from './bits'
 import Atelier from './Atelier'
 
 type View = 'agora' | 'feitos'
@@ -53,25 +53,58 @@ export default function App() {
     const next = { ...cur, ...p }
     save(next)
     if ('remindAt' in p || 'doneAt' in p || 'deletedAt' in p)
-      scheduleReminder(id, next.doneAt || next.deletedAt ? undefined : next.remindAt, 'Chegou a hora ' + KINDS[next.kind].sigil, next.title || host(next.url))
+      scheduleReminder(id, next.doneAt || next.deletedAt ? undefined : next.remindAt, 'Chegou a hora ' + KINDS[next.kind].sigil, label(next))
   }, [save])
 
-  const add = useCallback(async (raw: string, note?: string) => {
+  const add = useCallback(async (raw: string, note?: string, title?: string) => {
     const url = extractUrl(raw)
     if (!url) return say('Isso não parece um link.')
     const dup = itemsRef.current.find((x) => canon(x.url) === canon(url))
     if (dup) { setOpen(dup.id); return say('Esse já estava na rede.') }
-    const item: Item = { id: crypto.randomUUID(), url, kind: guessKind(url), createdAt: Date.now(), note, loading: true }
+    const item: Item = { id: crypto.randomUUID(), url, kind: guessKind(url), createdAt: Date.now(), note, title, loading: true }
     await save(item)
     say(`${KINDS[item.kind].sigil} · uma estrela nova na rede`)
     const p = await loadPreview(url)
     const latest = itemsRef.current.find((x) => x.id === item.id) ?? item
     const kind = latest.kind === item.kind ? guessKind(url, p.type, p.price) : latest.kind
     const { type: _t, ...meta } = p
-    await save({ ...latest, ...meta, kind, loading: false })
+    await save({ ...latest, ...meta, title: meta.title || latest.title, kind, loading: false })
   }, [save, say])
 
-  const remove = useCallback((id: string) => { patch(id, { deletedAt: Date.now() }); setOpen(null); say('Esquecido.') }, [patch, say])
+  const remove = useCallback((id: string) => {
+    const media = itemsRef.current.find((x) => x.id === id)?.media
+    if (media) removeMedia(media.path)
+    patch(id, { deletedAt: Date.now() }); setOpen(null); say('Esquecido.')
+  }, [patch, say])
+
+  // o que chega pelo "Compartilhar" do celular: links, textos, fotos, vídeos, arquivos
+  const receive = useCallback(async (shared: Shared[]) => {
+    for (const s of shared) {
+      if (s.type === 'text') {
+        const url = extractUrl(s.text)
+        if (url) {
+          const rest = s.text.replace(url, '').trim()
+          await add(url, rest && rest !== s.subject ? rest : undefined, s.subject || undefined)
+          continue
+        }
+        const text = (s.text || s.subject || '').trim()
+        if (!text) continue
+        const first = text.split('\n')[0]
+        await save({ id: crypto.randomUUID(), url: '', kind: 'outro', createdAt: Date.now(),
+          title: s.subject || (first.length > 90 ? first.slice(0, 88) + '…' : first), description: s.subject || first !== text ? text : undefined })
+        say('ξ · um texto guardado')
+      } else {
+        const kind = mediaKind(s.mime)
+        const day = new Date().toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' })
+        const what = kind === 'imagem' ? 'Foto' : kind === 'video' ? 'Vídeo' : s.name
+        await save({ id: crypto.randomUUID(), url: '', kind, createdAt: Date.now(),
+          title: s.text?.trim() || (kind === 'imagem' || kind === 'video' ? `${what} de ${day}` : s.name),
+          image: s.thumb ?? undefined, media: { path: s.path, mime: s.mime, name: s.name, size: s.size } })
+        say(`${KINDS[kind].sigil} · ${kind === 'imagem' ? 'foto guardada' : kind === 'video' ? 'vídeo guardado' : 'arquivo guardado'}`)
+      }
+    }
+    if (shared.length > 1) say(`${shared.length} coisas guardadas na rede`)
+  }, [add, save, say])
 
   // começo: banco local, links compartilhados, nuvem, atualizações
   useEffect(() => {
@@ -82,9 +115,10 @@ export default function App() {
       const shared = extractUrl(q.get('url')) ?? extractUrl(q.get('text')) ?? extractUrl(q.get('title'))
       if (shared) { history.replaceState(null, '', '/'); add(shared) }
       xs.filter((x) => x.loading).forEach((x) => loadPreview(x.url).then(({ type: _t, ...m }) => save({ ...x, ...m, loading: false })))
+      onShare((shared) => { receive(shared) })
       // no celular, garante que todos os alarmes futuros estão agendados no sistema
       if (isMobile) xs.filter((x) => x.remindAt && !x.doneAt && x.remindAt > Date.now())
-        .forEach((x) => scheduleReminder(x.id, x.remindAt, 'Chegou a hora ' + KINDS[x.kind].sigil, x.title || host(x.url)))
+        .forEach((x) => scheduleReminder(x.id, x.remindAt, 'Chegou a hora ' + KINDS[x.kind].sigil, label(x)))
     })
     initSync(() => store.all().then(setItems))
     startUpdater()
@@ -155,7 +189,7 @@ export default function App() {
       for (const i of itemsRef.current) {
         if (isDue(i) && !i.notifiedAt) {
           patch(i.id, { notifiedAt: Date.now() })
-          if (!isMobile) notify('Chegou a hora ' + KINDS[i.kind].sigil, i.title || host(i.url))
+          if (!isMobile) notify('Chegou a hora ' + KINDS[i.kind].sigil, label(i))
         }
       }
     }
@@ -330,7 +364,7 @@ const Astrolabe = memo(function Astrolabe({ items, filter, counts, dueCount, onF
           <g key={i.id} className={'star ' + (isDue(i) ? 'due ' : '') + (filter && filter !== i.kind ? 'dim' : '')} transform={`translate(${x.toFixed(1)} ${y.toFixed(1)})`} onClick={() => onPick(i.id)}>
             <circle r="10" className="halo" />
             <path d="M0 -4.5 L1.1 -1.1 L4.5 0 L1.1 1.1 L0 4.5 L-1.1 1.1 L-4.5 0 L-1.1 -1.1 Z" className="point" />
-            <title>{(i.title || host(i.url)) + (i.remindAt ? ' — ' + relative(i.remindAt) : '')}</title>
+            <title>{label(i) + (i.remindAt ? ' — ' + relative(i.remindAt) : '')}</title>
           </g>
         ))}
       </g>
@@ -387,7 +421,7 @@ function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string)
         <Spell as="h2" text={line} key={line + id} speed={0.6} />
         <p className="aside">Toda vez que você abre o app, uma estrela da rede vem até você.</p>
         <div className="row">
-          <a href={item.url} target="_blank" rel="noreferrer" className="seal-link"><Seal>abrir</Seal></a>
+          {(item.url || item.media) && <Seal onClick={() => openItem(item)}>abrir</Seal>}
           <button className="ink" onClick={next}>outra carta</button>
           <button className="ink" onClick={() => { onDone(item.id); next() }}>já fiz ✓</button>
         </div>
@@ -398,8 +432,8 @@ function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string)
           <div className="tarot-img" style={art(item)}>{item.image ? <img src={item.image} alt="" referrerPolicy="no-referrer" onError={(e) => (e.currentTarget.style.display = 'none')} /> : <b className="script">{k.sigil}</b>}</div>
           <div className="tarot-body">
             <span className="tarot-word"><span className="script">{k.sigil} · {k.word}</span></span>
-            <h3>{item.title || host(item.url)}</h3>
-            <span className="mono">{host(item.url)}</span>
+            <h3>{label(item)}</h3>
+            <span className="mono">{origin(item)}</span>
           </div>
         </div>
       </div>
@@ -422,7 +456,7 @@ function TarotBack() {
 
 // Arte generativa: cada domínio tem sua paleta, quando não há imagem
 function art(i: Item): React.CSSProperties {
-  const h = hash(host(i.url)), a = h % 360, b = (a + 40 + (h >> 8) % 80) % 360
+  const h = hash(host(i.url) || i.id), a = h % 360, b = (a + 40 + (h >> 8) % 80) % 360
   return { background: `radial-gradient(120% 90% at ${20 + (h % 60)}% 10%, hsl(${a} 55% 58%), transparent 60%), radial-gradient(100% 100% at 90% 100%, hsl(${b} 45% 38%), hsl(${a} 25% 14%))` }
 }
 
@@ -438,8 +472,8 @@ const Leaf = memo(function Leaf({ item: i, n, onOpen }: { item: Item; n: number;
         {i.price && <span className="price">{i.price}</span>}
       </figure>
       <div className="caption">
-        <p className="leaf-meta"><span className="num">{greekNumeral(n)}</span><span className="script sig" title={k.word}>{k.sigil}</span><span className="mono">{i.site || host(i.url)}</span></p>
-        <h3>{i.loading ? <span className="shimmer">lendo as estrelas…</span> : i.title || host(i.url)}</h3>
+        <p className="leaf-meta"><span className="num">{greekNumeral(n)}</span><span className="script sig" title={k.word}>{k.sigil}</span><span className="mono">{origin(i)}</span></p>
+        <h3>{i.loading ? <span className="shimmer">lendo as estrelas…</span> : label(i)}</h3>
         {i.note && <p className="marg">{i.note}</p>}
         {i.remindAt && !i.doneAt && <p className={'when ' + (isDue(i) ? 'now' : '')}>☾ {isDue(i) ? 'chegou a hora' : relative(i.remindAt)}</p>}
       </div>
@@ -472,20 +506,22 @@ function Quill({ onAdd }: { onAdd: (url: string) => void }) {
 // ——— Ficha do item, escrita em frases ———
 function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
   const [note, setNote] = useState(i.note ?? '')
+  const sheet = useSheet<HTMLElement>(onClose)
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const remind = (when: number) => { patch({ remindAt: when, notifiedAt: undefined }); say('☾ lembro ' + relative(when)) }
   const local = (ms?: number) => { if (!ms) return ''; const d = new Date(ms - new Date().getTimezoneOffset() * 6e4); return d.toISOString().slice(0, 16) }
   const k = KINDS[i.kind]
   return (
     <div className="scrim" onClick={onClose}>
-      <aside className="sheet ficha" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={i.title || i.url}>
+      <aside ref={sheet} className="sheet ficha" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={label(i)}>
         <div className="grip" />
+        <div className="sheet-bar"><button className="sheet-x" onClick={onClose} aria-label="Fechar">✕</button></div>
         <figure className="sheet-plate" style={art(i)}>{i.image ? <img src={i.image} alt="" referrerPolicy="no-referrer" /> : <b className="script">{k.sigil}</b>}</figure>
         <div className="sheet-body">
-          <p className="mono">{i.site || host(i.url)}{i.price && ' · ' + i.price}</p>
-          <h2>{i.title || host(i.url)}</h2>
+          <p className="mono">{origin(i)}{i.price && ' · ' + i.price}</p>
+          <h2>{label(i)}</h2>
           {i.description && <p className="desc">{i.description}</p>}
-          <div className="row"><a href={i.url} target="_blank" rel="noreferrer" className="seal-link"><Seal>abrir o link</Seal></a></div>
+          {(i.url || i.media) && <div className="row"><Seal onClick={() => openItem(i)}>{i.media ? { foto: 'ver a foto', vídeo: 'ver o vídeo', pdf: 'abrir o pdf', arquivo: 'abrir o arquivo' }[origin(i)] ?? 'abrir' : 'abrir o link'}</Seal></div>}
 
           <p className="sentence">Isto é <Choice value={i.kind} onChange={(v) => patch({ kind: v })}
             options={KIND_IDS.map((x) => [x, <><span className="script">{KINDS[x].sigil}</span> {KINDS[x].one}</>])} sep="," />.</p>
