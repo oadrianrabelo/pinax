@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.4.2](https://github.com/oadrianrabelo/pinax/compare/v0.4.1...v0.4.2) (2026-11-21)
+
+### Correções
+
+* **android:** nada fica escondido embaixo da barra de status e da de navegação ([7a4df6c](https://github.com/oadrianrabelo/pinax/commit/7a4df6c4d9bd3d33675a42ed2ce7a45a4b74a75c))
+
 ## [0.4.1](https://github.com/oadrianrabelo/pinax/compare/v0.4.0...v0.4.1) (2026-11-21)
 
 ### Correções
