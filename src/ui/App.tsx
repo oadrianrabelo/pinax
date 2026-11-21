@@ -8,7 +8,7 @@ import { initSync, scheduleSync, useSync } from '../core/sync'
 import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from '../core/update'
 import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
 import { Spell, greekNumeral } from './spell'
-import { Choice, Notes, Scripts, Seal } from './bits'
+import { Choice, Notes, Scripts, Seal, useSheet } from './bits'
 import Atelier from './Atelier'
 
 type View = 'agora' | 'feitos'
@@ -506,14 +506,16 @@ function Quill({ onAdd }: { onAdd: (url: string) => void }) {
 // ——— Ficha do item, escrita em frases ———
 function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
   const [note, setNote] = useState(i.note ?? '')
+  const sheet = useSheet<HTMLElement>(onClose)
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
   const remind = (when: number) => { patch({ remindAt: when, notifiedAt: undefined }); say('☾ lembro ' + relative(when)) }
   const local = (ms?: number) => { if (!ms) return ''; const d = new Date(ms - new Date().getTimezoneOffset() * 6e4); return d.toISOString().slice(0, 16) }
   const k = KINDS[i.kind]
   return (
     <div className="scrim" onClick={onClose}>
-      <aside className="sheet ficha" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={i.title || i.url}>
+      <aside ref={sheet} className="sheet ficha" onClick={(e) => e.stopPropagation()} role="dialog" aria-label={label(i)}>
         <div className="grip" />
+        <div className="sheet-bar"><button className="sheet-x" onClick={onClose} aria-label="Fechar">✕</button></div>
         <figure className="sheet-plate" style={art(i)}>{i.image ? <img src={i.image} alt="" referrerPolicy="no-referrer" /> : <b className="script">{k.sigil}</b>}</figure>
         <div className="sheet-body">
           <p className="mono">{origin(i)}{i.price && ' · ' + i.price}</p>
