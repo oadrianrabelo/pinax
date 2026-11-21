@@ -6,7 +6,8 @@
 <p align="center"><img src="public/icon.svg" width="120"></p>
 
 <p align="center"><img src="docs/mural.jpg" width="49%"> <img src="docs/yerushalayim.jpg" width="49%"></p>
-<p align="center"><img src="docs/feitico.jpg" width="56%"> <img src="docs/eras.jpg" width="42%"></p>
+<p align="center"><img src="docs/feitico.jpg" width="49%"> <img src="docs/eras.jpg" width="49%"></p>
+<p align="center"><img src="docs/celular.jpg" width="60%"></p>
 
 ## O que tem
 
