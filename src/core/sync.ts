@@ -13,8 +13,8 @@ export const supabase = URL_ && KEY_
   ? createClient(URL_, KEY_, { auth: { flowType: 'pkce', detectSessionInUrl: !isNative, persistSession: true } })
   : null
 
-// No app nativo o login volta por um link profundo: rete://auth?code=...
-const REDIRECT = isNative ? 'rete://auth' : location.origin
+// No app nativo o login volta por um link profundo: pinax://auth?code=...
+const REDIRECT = isNative ? 'pinax://auth' : location.origin
 
 export interface SyncState {
   phase: 'off' | 'signed-out' | 'syncing' | 'ok' | 'offline' | 'error'

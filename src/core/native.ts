@@ -68,7 +68,7 @@ const nid = (id: string) => { let h = 7; for (const c of id) h = (Math.imul(h, 3
 
 /**
  * No celular, o próprio sistema agenda o alarme — toca mesmo com o app fechado.
- * No computador, o Rete fica na bandeja e dispara na hora (ver laço em App.tsx).
+ * No computador, o Pinax fica na bandeja e dispara na hora (ver laço em App.tsx).
  */
 export async function scheduleReminder(id: string, at: number | undefined, title: string, body: string) {
   if (!isNative || !isMobile) return
@@ -87,7 +87,7 @@ export async function readClipboard(): Promise<string | null> {
   } catch { return null }
 }
 
-// ——— links profundos (rete://auth?code=...) ———
+// ——— links profundos (pinax://auth?code=...) ———
 export async function onDeepLink(cb: (url: string) => void) {
   if (!isNative) return
   const { onOpenUrl, getCurrent } = await import('@tauri-apps/plugin-deep-link')
@@ -116,7 +116,7 @@ export type Shared =
 type Bridge = { take(): string; open(path: string): void; remove(path: string): void }
 const bridge = () => (window as unknown as { ReteShare?: Bridge }).ReteShare
 
-/** Entrega o que outros apps compartilharam com o Rete — ao abrir e sempre que chegar algo novo. */
+/** Entrega o que outros apps compartilharam com o Pinax — ao abrir e sempre que chegar algo novo. */
 export function onShare(cb: (items: Shared[]) => void) {
   const take = () => {
     const b = bridge()

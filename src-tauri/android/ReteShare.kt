@@ -1,4 +1,4 @@
-// Recebe o que outros apps compartilham com o Rete (menu "Compartilhar" do Android):
+// Recebe o que outros apps compartilham com o Pinax (menu "Compartilhar" do Android):
 // links, textos, fotos, vídeos e arquivos. Copia os arquivos para dentro do app (a permissão
 // de leitura do outro app expira), gera uma miniatura e entrega tudo para a interface
 // por uma ponte JavaScript: window.ReteShare.take().

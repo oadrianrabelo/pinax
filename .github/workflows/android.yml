@@ -32,7 +32,7 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with: { workspaces: src-tauri }
       - run: npm ci
-      - name: Gerar o projeto Android e encaixar o Rete (compartilhar, arquivos)
+      - name: Gerar o projeto Android e encaixar o Pinax (compartilhar, arquivos)
         run: |
           export NDK_HOME="$ANDROID_NDK_LATEST_HOME"
           npx tauri android init --ci
@@ -54,13 +54,13 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_BASE64 não configurado — APK assinado com chave temporária"
             PASS=temporaria
             keytool -genkeypair -keystore rete.keystore -storepass "$PASS" -keypass "$PASS" -alias rete \
-              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Rete" >/dev/null
+              -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Pinax" >/dev/null
           fi
           V="${VERSION:-teste}"
           for abi in arm64 arm; do
             IN=$(find src-tauri/gen/android -path "*/$abi/release/*.apk" | head -n1)
             [ -z "$IN" ] && { echo "APK $abi não encontrado"; find src-tauri/gen/android -name '*.apk'; exit 1; }
-            NAME=$([ "$abi" = arm64 ] && echo "Rete_${V}_android.apk" || echo "Rete_${V}_android-armv7.apk")
+            NAME=$([ "$abi" = arm64 ] && echo "Pinax_${V}_android.apk" || echo "Pinax_${V}_android-armv7.apk")
             "$BT/zipalign" -f -p 4 "$IN" aligned.apk
             "$BT/apksigner" sign --ks rete.keystore --ks-pass "pass:$PASS" --ks-key-alias rete --out "$NAME" aligned.apk
             ls -lh "$NAME"
@@ -69,11 +69,11 @@ jobs:
         if: ${{ !inputs.ref }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: gh release upload "v${VERSION}" "Rete_${VERSION}_android.apk" "Rete_${VERSION}_android-armv7.apk" --clobber
+        run: gh release upload "v${VERSION}" "Pinax_${VERSION}_android.apk" "Pinax_${VERSION}_android-armv7.apk" --clobber
       - name: APK de teste (artefato)
         if: ${{ inputs.ref }}
         uses: actions/upload-artifact@v4
         with:
-          name: Rete-teste-android
-          path: Rete_teste_android*.apk
+          name: Pinax-teste-android
+          path: Pinax_teste_android*.apk
           retention-days: 7

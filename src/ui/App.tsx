@@ -122,7 +122,7 @@ export default function App() {
     })
     initSync(() => store.all().then(setItems))
     startUpdater()
-    // rete://add?url=...  (o favorito do navegador manda links direto pro app)
+    // pinax://add?url=... (e rete://, das versões antigas)  (o favorito do navegador manda links direto pro app)
     onDeepLink((u) => { const url = new URL(u); if (url.host === 'add') { const l = url.searchParams.get('url'); if (l) add(l) } })
     // na primeira vez no computador, liga "abrir com o sistema" — é o que faz os lembretes tocarem
     if (isDesktopApp && !localStorage.getItem('rete:autostart-asked')) {
@@ -166,7 +166,7 @@ export default function App() {
     return () => { removeEventListener('paste', onPaste); removeEventListener('drop', onDrop); removeEventListener('dragover', onOver) }
   }, [add])
 
-  // copiou um link em outro app? ao voltar, o Rete oferece guardar
+  // copiou um link em outro app? ao voltar, o Pinax oferece guardar
   useEffect(() => {
     if (!isNative) return
     const look = async () => {
@@ -227,7 +227,7 @@ export default function App() {
               {era ? <>era · {era.name} · {era.year}</> : 'era · do acaso'}
             </button>
           </p>
-          <Spell as="h1" text={prefs.title || 'Rete'} replayOnHover />
+          <Spell as="h1" text={prefs.title || 'Pinax'} replayOnHover />
           {prefs.subtitle && <p className="subtitle"><Scripts text={prefs.subtitle} /></p>}
           <p className="lede">
             {pending.length === 0 ? <>A rede está vazia. Cole um link em qualquer lugar e ele vira uma estrela.</> : <>
@@ -448,7 +448,7 @@ function TarotBack() {
       <rect x="-82" y="-147" width="164" height="294" rx="3" className="frame thin" />
       <g className="rays">{Array.from({ length: 36 }, (_, i) => { const a = (i * 10 * Math.PI) / 180; return <line key={i} x1={Math.cos(a) * 30} y1={Math.sin(a) * 30} x2={Math.cos(a) * (i % 2 ? 58 : 72)} y2={Math.sin(a) * (i % 2 ? 58 : 72)} /> })}</g>
       <circle r="26" className="frame" />
-      <text y="10" className="script">ρ</text>
+      <text y="10" className="script">π</text>
       {[-120, 120].map((y) => <text key={y} y={y + 5} className="corner">✦</text>)}
     </svg>
   )
@@ -531,7 +531,7 @@ function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hou
           {i.remindAt && (
             <p className="aside">
               ☾ Marcado para <b>{new Date(i.remindAt).toLocaleString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</b> ({relative(i.remindAt)}).{' '}
-              {isNative ? (isMobile ? 'O celular toca mesmo com o app fechado.' : 'O Rete toca da bandeja, mesmo com a janela fechada.') : <button className="ink" onClick={() => downloadIcs(i)}>pôr no calendário</button>} ·{' '}
+              {isNative ? (isMobile ? 'O celular toca mesmo com o app fechado.' : 'O Pinax toca da bandeja, mesmo com a janela fechada.') : <button className="ink" onClick={() => downloadIcs(i)}>pôr no calendário</button>} ·{' '}
               <button className="ink" onClick={() => patch({ remindAt: undefined })}>desmarcar</button>
             </p>
           )}

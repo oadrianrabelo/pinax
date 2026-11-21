@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Rete",
+  "productName": "Pinax",
   "version": "../package.json",
   "identifier": "app.rete.links",
   "build": {
@@ -11,7 +11,7 @@
   },
   "app": {
     "windows": [
-      { "label": "main", "title": "Rete", "width": 1280, "height": 860, "minWidth": 380, "minHeight": 600, "center": true }
+      { "label": "main", "title": "Pinax", "width": 1280, "height": 860, "minWidth": 380, "minHeight": 600, "center": true }
     ],
     "security": { "csp": null }
   },
@@ -19,7 +19,7 @@
     "active": true,
     "targets": "all",
     "category": "Productivity",
-    "shortDescription": "O astrolábio dos seus links",
+    "shortDescription": "O caderno de bolso dos seus links",
     "longDescription": "Guarde links de compras, leituras, vídeos e coleções e receba cada um de volta na hora certa.",
     "copyright": "© 2026",
     "createUpdaterArtifacts": false,
@@ -33,8 +33,8 @@
       "windows": { "installMode": "passive" }
     },
     "deep-link": {
-      "desktop": { "schemes": ["rete"] },
-      "mobile": [{ "scheme": ["rete"], "appLink": false }]
+      "desktop": { "schemes": ["pinax", "rete"] },
+      "mobile": [{ "scheme": ["pinax", "rete"], "appLink": false }]
     }
   }
 }
