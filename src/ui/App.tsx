@@ -6,7 +6,7 @@ import {
 import { ERAS, usePrefs } from '../core/prefs'
 import { initSync, scheduleSync, useSync } from '../core/sync'
 import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from '../core/update'
-import { captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
+import { watchSystemBars, captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
 import { Spell, greekNumeral } from './spell'
 import { Choice, Notes, Scripts, Seal, useSheet } from './bits'
 import Atelier from './Atelier'
@@ -109,6 +109,7 @@ export default function App() {
   // começo: banco local, links compartilhados, nuvem, atualizações
   useEffect(() => {
     captureLinks()
+    watchSystemBars()
     store.all().then((xs) => {
       setItems(xs); setReady(true)
       const q = new URLSearchParams(location.search)

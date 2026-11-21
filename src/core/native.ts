@@ -113,7 +113,7 @@ export type Shared =
   | { type: 'text'; text: string; subject?: string }
   | { type: 'file'; path: string; mime: string; name: string; size: number; thumb: string | null; text?: string }
 
-type Bridge = { take(): string; open(path: string): void; remove(path: string): void }
+type Bridge = { take(): string; open(path: string): void; remove(path: string): void; insets?(): string; bars?(dark: boolean): void }
 const bridge = () => (window as unknown as { ReteShare?: Bridge }).ReteShare
 
 /** Entrega o que outros apps compartilharam com o Pinax — ao abrir e sempre que chegar algo novo. */
@@ -137,4 +137,22 @@ export const removeMedia = (path: string) => bridge()?.remove(path)
 export function openItem(i: { url: string; media?: { path: string } }) {
   if (i.media) return openMedia(i.media.path)
   return openExternal(i.url)
+}
+
+/** Reserva o espaço das barras do sistema (o Android desenha o app por baixo delas). */
+export function watchSystemBars() {
+  const apply = () => {
+    const b = bridge()
+    if (!b?.insets) return
+    try {
+      const i = JSON.parse(b.insets()) as { top?: number; bottom?: number; left?: number; right?: number }
+      const s = document.documentElement.style
+      if (i.top != null) s.setProperty('--sat', i.top + 'px')
+      if (i.bottom != null) s.setProperty('--sab', i.bottom + 'px')
+      if (i.left != null) s.setProperty('--sal', i.left + 'px')
+      if (i.right != null) s.setProperty('--sar', i.right + 'px')
+    } catch {}
+  }
+  window.addEventListener('rete-insets', apply)
+  apply()
 }

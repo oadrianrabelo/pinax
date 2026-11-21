@@ -328,6 +328,7 @@ export function apply(p: Prefs) {
   document.documentElement.classList.toggle('no-grain', !p.grain)
   document.documentElement.classList.toggle('still', !p.motion)
   document.documentElement.dataset.dark = String(pal.dark)
+  try { (window as unknown as { ReteShare?: { bars?(d: boolean): void } }).ReteShare?.bars?.(pal.dark) } catch {}
 }
 
 function pickOn(hex: string) {
