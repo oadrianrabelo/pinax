@@ -141,7 +141,7 @@ export function downloadIcs(i: Item) {
   const esc = (s: string) => s.replace(/[\\,;]/g, (c) => '\\' + c).replace(/\n/g, '\\n')
   const title = `${KINDS[i.kind].sigil} ${i.title || host(i.url)}`
   const ics = [
-    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rete//PT-BR', 'BEGIN:VEVENT',
+    'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Pinax//PT-BR', 'BEGIN:VEVENT',
     `UID:${i.id}@rete`, `DTSTAMP:${f(Date.now())}`, `DTSTART:${f(t)}`, `DTEND:${f(t + 15 * 6e4)}`,
     `SUMMARY:${esc(title)}`, `DESCRIPTION:${esc((i.note ? i.note + '\n\n' : '') + i.url)}`, `URL:${i.url}`,
     'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${esc(title)}`, 'TRIGGER:PT0M', 'END:VALARM',
@@ -149,7 +149,7 @@ export function downloadIcs(i: Item) {
   ].join('\r\n')
   const a = document.createElement('a')
   a.href = URL.createObjectURL(new Blob([ics], { type: 'text/calendar' }))
-  a.download = 'rete-lembrete.ics'
+  a.download = 'pinax-lembrete.ics'
   a.click()
   setTimeout(() => URL.revokeObjectURL(a.href), 1000)
 }

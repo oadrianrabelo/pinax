@@ -1,4 +1,4 @@
-// Depois de `tauri android init`, encaixa o Rete no projeto Android gerado:
+// Depois de `tauri android init`, encaixa o Pinax no projeto Android gerado:
 //  - aparece no menu "Compartilhar" (links, textos, fotos, vídeos, arquivos)
 //  - abre os arquivos guardados com o app do sistema (FileProvider)
 //  - liga a ponte ReteShare na MainActivity
@@ -22,7 +22,7 @@ let main = readFileSync(mainPath, 'utf8')
 const pkg = main.match(/^package\s+([\w.]+)/m)[1]
 if (!main.includes('ReteShare')) {
   const hooks = `
-  // ——— Rete: receber o que vem do "Compartilhar" ———
+  // ——— Pinax: receber o que vem do "Compartilhar" ———
   override fun onWebViewCreate(webView: android.webkit.WebView) {
     super.onWebViewCreate(webView)
     ReteShare.attach(this, webView)
@@ -94,4 +94,4 @@ writeFileSync(join(root, 'res/xml/rete_paths.xml'), `<?xml version="1.0" encodin
 </paths>
 `)
 
-console.log(`✓ Rete encaixado no Android (${pkg})`)
+console.log(`✓ Pinax encaixado no Android (${pkg})`)

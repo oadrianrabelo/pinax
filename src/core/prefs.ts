@@ -249,7 +249,7 @@ export const DEFAULTS: Prefs = {
   display: 'instrument-serif', body: 'alegreya', mono: 'xanh-mono', sigil: 'gfs-didot', script: 'era',
   scale: 1, tilt: 0, density: 'confortável', radius: 4,
   grain: true, motion: true, oracle: true, astrolabe: true, italicTitle: true, cardFont: 'display',
-  reminderHour: 9, title: 'Rete', subtitle: 'a rede de estrelas do ἀστρολάβος', updatedAt: 0,
+  reminderHour: 9, title: 'Pinax', subtitle: 'πίναξ · tabuinha, lista, catálogo', updatedAt: 0,
 }
 
 const KEY = 'rete:prefs'
@@ -258,6 +258,9 @@ let current: Prefs = (() => {
     const saved = JSON.parse(localStorage.getItem(KEY) ?? '{}')
     if (saved.tilt && !saved.straightened) { saved.tilt = 0; saved.straightened = true }
     delete saved.tape
+    // Rete → Pinax: troca o nome e o subtítulo padrão, mas respeita o que você escreveu
+    if (saved.title === 'Rete') saved.title = 'Pinax'
+    if (saved.subtitle === 'a rede de estrelas do ἀστρολάβος') saved.subtitle = 'πίναξ · tabuinha, lista, catálogo'
     return { ...DEFAULTS, ...saved }
   } catch { return DEFAULTS }
 })()

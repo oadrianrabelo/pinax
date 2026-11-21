@@ -96,7 +96,7 @@ function Eras() {
 }
 
 const ROLES: { role: Role | 'spell'; label: string; sample: string; hint: string }[] = [
-  { role: 'display', label: 'títulos', sample: 'Rete', hint: 'O nome do app, o oráculo e os títulos das folhas.' },
+  { role: 'display', label: 'títulos', sample: 'Pinax', hint: 'O nome do app, o oráculo e os títulos das folhas.' },
   { role: 'body', label: 'texto', sample: 'Guardar agora, viver depois.', hint: 'As frases, as notas e as descrições.' },
   { role: 'mono', label: 'rótulos', sample: 'EM 2 DIAS · 09:00', hint: 'Domínios, datas, preços — as letrinhas técnicas.' },
   { role: 'sigil', label: 'grego', sample: 'χ λ θ σ ξ · ἀστρολάβος', hint: 'Sigilos e trechos em grego. Só fontes que têm o alfabeto grego.' },
@@ -132,7 +132,7 @@ function Letters() {
               </button>
             ))}
           </div>
-          <Spell as="p" className="spell-demo" text={p.title || 'Rete'} key={p.script} replayOnHover />
+          <Spell as="p" className="spell-demo" text={p.title || 'Pinax'} key={p.script} replayOnHover />
           <p className="aside">Passe o mouse (ou toque) no nome acima para lançar de novo.</p>
         </>
       ) : (
@@ -201,8 +201,8 @@ function Craft() {
   return (
     <>
       <h4>o nome</h4>
-      <label className="line-field"><input value={p.title} onChange={(e) => setPrefs({ title: e.target.value })} placeholder="Rete" aria-label="Nome no topo" /></label>
-      <label className="line-field"><input value={p.subtitle} onChange={(e) => setPrefs({ subtitle: e.target.value })} placeholder="a rede de estrelas do ἀστρολάβος" aria-label="Subtítulo" /></label>
+      <label className="line-field"><input value={p.title} onChange={(e) => setPrefs({ title: e.target.value })} placeholder="Pinax" aria-label="Nome no topo" /></label>
+      <label className="line-field"><input value={p.subtitle} onChange={(e) => setPrefs({ subtitle: e.target.value })} placeholder="πίναξ · tabuinha, lista, catálogo" aria-label="Subtítulo" /></label>
       <p className="aside">Grego, hebraico ou aramaico no subtítulo ganham a fonte grega sozinhos: <Scripts text="אֶתְפְּתַח · abre-te" /></p>
 
       <h4>a mesa</h4>
@@ -216,7 +216,7 @@ function Craft() {
       <h4>o tempo</h4>
       <Ruler k="reminderHour" label="Lembretes chegam às" min={5} max={22} step={1} fmt={(v) => String(v).padStart(2, '0') + 'h'} />
       {isDesktopApp && auto !== null && (
-        <p className="sentence">O Rete {<Choice value={auto} onChange={async (v) => { await setAutostart(v); setAuto(v) }} options={[[true, 'abre junto com o computador'], [false, 'só abre quando eu mandar']]} sep="/" />}.
+        <p className="sentence">O Pinax {<Choice value={auto} onChange={async (v) => { await setAutostart(v); setAuto(v) }} options={[[true, 'abre junto com o computador'], [false, 'só abre quando eu mandar']]} sep="/" />}.
           <span className="aside block">Aberto (mesmo escondido na bandeja), ele consegue tocar os lembretes na hora.</span></p>
       )}
       <p><button className="ink danger" onClick={() => confirm('Voltar tudo ao padrão?') && setPrefs({ ...DEFAULTS })}>restaurar o padrão</button></p>
@@ -264,7 +264,7 @@ function Account() {
 
 function About({ items, onImport }: { items: Item[]; onImport: (xs: Item[]) => void }) {
   const upd = useUpdate()
-  const bookmarklet = "javascript:void(location.href='rete://add?url='+encodeURIComponent(location.href))"
+  const bookmarklet = "javascript:void(location.href='pinax://add?url='+encodeURIComponent(location.href))"
   const exportJson = () => {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' }))
@@ -284,11 +284,11 @@ function About({ items, onImport }: { items: Item[]; onImport: (xs: Item[]) => v
         <p className="big">{VERSION}</p>
         <p>{isNative ? status : 'versão de desenvolvimento (navegador)'}</p>
       </div>
-      <p className="aside">No computador, o Rete se atualiza sozinho: baixa em silêncio e pede só um reinício. No celular, avisa quando há versão nova.</p>
+      <p className="aside">No computador, o Pinax se atualiza sozinho: baixa em silêncio e pede só um reinício. No celular, avisa quando há versão nova.</p>
 
       <h4>formas de guardar</h4>
-      <p className="aside"><b>Em qualquer lugar:</b> copie um link e volte ao Rete — ele oferece guardar. Ou cole (Ctrl+V) e arraste links direto na janela.</p>
-      <p className="aside"><b>Do navegador:</b> arraste este marcador para a barra de favoritos: <a className="bm" href={bookmarklet} onClick={(e) => e.preventDefault()}>✦ pro Rete</a></p>
+      <p className="aside"><b>Em qualquer lugar:</b> copie um link e volte ao Pinax — ele oferece guardar. Ou cole (Ctrl+V) e arraste links direto na janela.</p>
+      <p className="aside"><b>Do navegador:</b> arraste este marcador para a barra de favoritos: <a className="bm" href={bookmarklet} onClick={(e) => e.preventDefault()}>✦ pro Pinax</a></p>
 
       <h4>cópia de segurança</h4>
       <p><button className="ink" onClick={exportJson}>exportar a rede (JSON)</button> · <label className="ink">importar<input type="file" accept="application/json" hidden onChange={async (e) => { const f = e.target.files?.[0]; if (f) onImport(JSON.parse(await f.text())) }} /></label></p>

@@ -1,4 +1,4 @@
-//! Rete — casca nativa. A interface é web (React); aqui ficam as partes do sistema:
+//! Pinax — casca nativa. A interface é web (React); aqui ficam as partes do sistema:
 //! bandeja, iniciar com o sistema, instância única, links profundos (login) e plugins.
 
 #[cfg(desktop)]
@@ -22,7 +22,7 @@ pub fn run() {
     #[allow(unused_mut)]
     let mut builder = tauri::Builder::default();
 
-    // Abrir o app de novo (ou um link rete://) só traz a janela existente pra frente
+    // Abrir o app de novo (ou um link pinax://) só traz a janela existente pra frente
     #[cfg(desktop)]
     {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| show_main(app)));
@@ -50,13 +50,13 @@ pub fn run() {
                     let _ = app.deep_link().register_all();
                 }
 
-                // Bandeja: o Rete continua vivo depois de fechar a janela, para os lembretes tocarem
-                let show = MenuItem::with_id(app, "show", "Abrir o Rete", true, None::<&str>)?;
+                // Bandeja: o Pinax continua vivo depois de fechar a janela, para os lembretes tocarem
+                let show = MenuItem::with_id(app, "show", "Abrir o Pinax", true, None::<&str>)?;
                 let quit = MenuItem::with_id(app, "quit", "Sair de vez", true, None::<&str>)?;
                 let menu = Menu::with_items(app, &[&show, &quit])?;
                 TrayIconBuilder::with_id("rete")
                     .icon(app.default_window_icon().unwrap().clone())
-                    .tooltip("Rete")
+                    .tooltip("Pinax")
                     .menu(&menu)
                     .show_menu_on_left_click(false)
                     .on_menu_event(|app, e| match e.id.as_ref() {
@@ -89,5 +89,5 @@ pub fn run() {
             }
         })
         .run(tauri::generate_context!())
-        .expect("erro ao iniciar o Rete");
+        .expect("erro ao iniciar o Pinax");
 }
