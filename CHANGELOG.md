@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.4.1](https://github.com/oadrianrabelo/pinax/compare/v0.4.0...v0.4.1) (2026-11-21)
+
+### Correções
+
+* atualizações buscam no repositório novo (oadrianrabelo/pinax) ([8aa3878](https://github.com/oadrianrabelo/pinax/commit/8aa38789dc4352d519887833203a4936634a55dc))
+
 ## [0.4.0](https://github.com/oadrianrabelo/agregador-links/compare/v0.3.0...v0.4.0) (2026-11-21)
 
 ### ✦ Novidades
