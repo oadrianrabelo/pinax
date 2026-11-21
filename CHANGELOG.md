@@ -1,5 +1,17 @@
 # Diário de bordo
 
+## [0.3.0](https://github.com/oadrianrabelo/agregador-links/compare/v0.2.2...v0.3.0) (2026-11-21)
+
+### ✦ Novidades
+
+* **android:** o Rete aparece no menu Compartilhar — links, textos, fotos, vídeos e arquivos ([e313841](https://github.com/oadrianrabelo/agregador-links/commit/e31384189b6539fdeb1a6b9594beabe29a355d9f))
+
+### Correções
+
+* app fluido no celular e botão voltar que não fecha o app ([b19c6a1](https://github.com/oadrianrabelo/agregador-links/commit/b19c6a1b38906b411ce53fe2a7eddb4366d92cb7))
+* folha aberta não rola mais a página de trás e fecha arrastando para baixo ([d082bcc](https://github.com/oadrianrabelo/agregador-links/commit/d082bcceb74cd364d8be442c8f00c45351663b39))
+* **visual:** letras com sentido e um mural mais calmo ([b058701](https://github.com/oadrianrabelo/agregador-links/commit/b05870166e21df9792cb3ec5940537439fe62762))
+
 ## [0.2.2](https://github.com/oadrianrabelo/agregador-links/compare/v0.2.1...v0.2.2) (2026-11-20)
 
 ### Correções
