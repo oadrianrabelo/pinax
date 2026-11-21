@@ -5,7 +5,7 @@ import changelog from '../../CHANGELOG.md?raw'
 import { isDesktopApp, isNative, openExternal } from './native'
 
 export const VERSION: string = __APP_VERSION__
-const REPO = 'oadrianrabelo/agregador-links'
+const REPO = 'oadrianrabelo/pinax'
 
 type State = { phase: 'idle' | 'checking' | 'latest' | 'downloading' | 'ready' | 'available' | 'error'; version?: string; progress?: number }
 let state: State = { phase: 'idle' }
