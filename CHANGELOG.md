@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.4.0](https://github.com/oadrianrabelo/agregador-links/compare/v0.3.0...v0.4.0) (2026-11-21)
+
+### ✦ Novidades
+
+* o app agora se chama Pinax, com ícone novo ([61e1c76](https://github.com/oadrianrabelo/agregador-links/commit/61e1c764eb73635902b9a87a16f863793cda9b5c))
+
 ## [0.3.0](https://github.com/oadrianrabelo/agregador-links/compare/v0.2.2...v0.3.0) (2026-11-21)
 
 ### ✦ Novidades
