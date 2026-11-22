@@ -2,8 +2,9 @@
 //  - aparece no menu "Compartilhar" (links, textos, fotos, vídeos, arquivos)
 //  - abre os arquivos guardados com o app do sistema (FileProvider)
 //  - liga a ponte ReteShare na MainActivity
+//  - usa o ícone do Pinax (o projeto gerado vem com o ícone padrão do Tauri)
 // Pode rodar mais de uma vez: cada passo confere se já foi feito.
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync, cpSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 
 const root = 'src-tauri/gen/android/app/src/main'
@@ -93,5 +94,9 @@ writeFileSync(join(root, 'res/xml/rete_paths.xml'), `<?xml version="1.0" encodin
     <files-path name="shared" path="shared/" />
 </paths>
 `)
+
+// 5. Ícone: o `tauri android init` cria o projeto com o ícone padrão do Tauri.
+//    Copia por cima o ícone adaptativo do Pinax (fundo + primeiro plano, todas as densidades).
+if (existsSync('src-tauri/icons/android')) cpSync('src-tauri/icons/android', join(root, 'res'), { recursive: true, force: true })
 
 console.log(`✓ Pinax encaixado no Android (${pkg})`)
