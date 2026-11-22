@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.4.3](https://github.com/oadrianrabelo/pinax/compare/v0.4.2...v0.4.3) (2026-11-22)
+
+### Correções
+
+* **android:** o APK passa a usar o ícone do Pinax ([d62b148](https://github.com/oadrianrabelo/pinax/commit/d62b148be36955b406aab312d0f3cf0ab3979106))
+
 ## [0.4.2](https://github.com/oadrianrabelo/pinax/compare/v0.4.1...v0.4.2) (2026-11-21)
 
 ### Correções
