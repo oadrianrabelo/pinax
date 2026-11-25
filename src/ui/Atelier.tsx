@@ -270,14 +270,16 @@ function About({ items, onImport }: { items: Item[]; onImport: (xs: Item[]) => v
   const exportJson = () => {
     const a = document.createElement('a')
     a.href = URL.createObjectURL(new Blob([JSON.stringify(items, null, 2)], { type: 'application/json' }))
-    a.download = `rete-${new Date().toISOString().slice(0, 10)}.json`; a.click()
+    a.download = `pinax-${new Date().toISOString().slice(0, 10)}.json`; a.click()
   }
   const status = {
     idle: <button className="ink" onClick={checkForUpdate}>procurar versão nova</button>,
     checking: <>procurando…</>, latest: <>✓ esta é a mais nova</>, error: <>não consegui verificar agora</>,
     downloading: <>baixando a {upd.version}… {Math.round((upd.progress ?? 0) * 100)}%</>,
     ready: <button className="ink" onClick={applyUpdate}>reiniciar na {upd.version}</button>,
-    available: <button className="ink" onClick={applyUpdate}>baixar a {upd.version}</button>,
+    available: <button className="ink" onClick={applyUpdate}>atualizar para a {upd.version}</button>,
+    installing: <>confirme “Atualizar” na tela do Android</>,
+    permission: <button className="ink" onClick={applyUpdate}>permita “instalar apps” e toque aqui de novo</button>,
   }[upd.phase]
   return (
     <>

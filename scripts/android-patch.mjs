@@ -85,6 +85,9 @@ if (!man.includes('.rete.files')) {
 `
   man = man.replace('</application>', provider + '    </application>')
 }
+if (!man.includes('REQUEST_INSTALL_PACKAGES')) {
+  man = man.replace(/<application/, '<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />\n    <application')
+}
 writeFileSync(manPath, man)
 
 // 4. Pastas que o FileProvider pode expor (só a dos arquivos recebidos)
@@ -92,6 +95,7 @@ mkdirSync(join(root, 'res/xml'), { recursive: true })
 writeFileSync(join(root, 'res/xml/rete_paths.xml'), `<?xml version="1.0" encoding="utf-8"?>
 <paths>
     <files-path name="shared" path="shared/" />
+    <cache-path name="updates" path="updates/" />
 </paths>
 `)
 

@@ -16,6 +16,9 @@ import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
+import android.provider.Settings
+import java.net.HttpURLConnection
+import java.net.URL
 import android.util.Base64
 import android.webkit.JavascriptInterface
 import android.webkit.MimeTypeMap
@@ -172,6 +175,68 @@ object ReteShare {
         b
     }
 
+    // ——— atualização no próprio app (sem passar pelo navegador) ———
+    // Baixa o APK certo para o processador do aparelho e abre o instalador do Android.
+    // O Android sempre pede uma confirmação para apps fora da Play Store; na primeira vez,
+    // também pede para permitir que o Pinax instale apps.
+    @Volatile private var updating = false
+
+    private fun emit(a: Activity, event: String, detail: String) {
+        val d = JSONObject.quote(detail)
+        a.runOnUiThread { webView?.evaluateJavascript("window.dispatchEvent(new CustomEvent('$event',{detail:$d}))", null) }
+    }
+
+    private fun downloadAndInstall(a: Activity, version: String, repo: String) {
+        if (updating) return
+        updating = true
+        try {
+            if (Build.VERSION.SDK_INT >= 26 && !a.packageManager.canRequestPackageInstalls()) {
+                emit(a, "rete-update", "permission")
+                a.runOnUiThread {
+                    a.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:" + a.packageName)))
+                }
+                return
+            }
+            val abi = if (Build.SUPPORTED_ABIS.any { it == "arm64-v8a" }) "android" else "android-armv7"
+            val url = "https://github.com/$repo/releases/download/v$version/Pinax_${version}_$abi.apk"
+            val dir = File(a.cacheDir, "updates").apply { mkdirs(); listFiles()?.forEach { it.delete() } }
+            val file = File(dir, "pinax-$version.apk")
+            val conn = URL(url).openConnection() as HttpURLConnection
+            conn.instanceFollowRedirects = true
+            conn.connectTimeout = 15000
+            conn.readTimeout = 30000
+            if (conn.responseCode != 200) throw IllegalStateException("HTTP " + conn.responseCode)
+            val total = conn.contentLengthLong
+            var got = 0L
+            var last = -1
+            conn.inputStream.use { input ->
+                file.outputStream().use { out ->
+                    val buf = ByteArray(64 * 1024)
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        got += n
+                        if (total > 0) {
+                            val pct = (got * 100 / total).toInt()
+                            if (pct != last) { last = pct; emit(a, "rete-update", "progress:$pct") }
+                        }
+                    }
+                }
+            }
+            val uri = FileProvider.getUriForFile(a, a.packageName + ".rete.files", file)
+            val install = Intent(Intent.ACTION_VIEW)
+                .setDataAndType(uri, "application/vnd.android.package-archive")
+                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
+            emit(a, "rete-update", "installing")
+            a.runOnUiThread { a.startActivity(install) }
+        } catch (e: Exception) {
+            emit(a, "rete-update", "error:" + (e.message ?: "falhou"))
+        } finally {
+            updating = false
+        }
+    }
+
     private fun inside(a: Activity, f: File) = f.canonicalPath.startsWith(File(a.filesDir, "shared").canonicalPath)
 
     private fun openFile(a: Activity, path: String) {
@@ -209,6 +274,13 @@ object ReteShare {
         fun bars(darkBackground: Boolean) {
             val a = activity ?: return
             setBars(a, darkBackground)
+        }
+
+        /** Baixa e instala a versão nova (progresso chega pelo evento 'rete-update'). */
+        @JavascriptInterface
+        fun installUpdate(version: String, repo: String) {
+            val a = activity ?: return
+            io.execute { downloadAndInstall(a, version, repo) }
         }
 
         /** Apaga o arquivo de um item esquecido. */
