@@ -8,7 +8,8 @@ import { getPrefs, setPrefs } from './prefs'
 import { isNative, onDeepLink, openExternal } from './native'
 
 const URL_ = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const KEY_ = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+// projetos novos chamam de "publishable key"; os antigos, de "anon key" — as duas são públicas por design (quem protege os dados é o RLS)
+const KEY_ = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined
 export const supabase = URL_ && KEY_
   ? createClient(URL_, KEY_, { auth: { flowType: 'pkce', detectSessionInUrl: !isNative, persistSession: true } })
   : null
@@ -148,3 +149,15 @@ export async function signInGoogle() {
 }
 export const signInEmail = (email: string) => supabase!.auth.signInWithOtp({ email, options: { emailRedirectTo: REDIRECT } })
 export const signOut = () => supabase!.auth.signOut()
+
+/** Quais formas de entrar estão ligadas no projeto (para não mostrar botão que não funciona). */
+export async function loginOptions(): Promise<{ google: boolean; email: boolean }> {
+  if (!URL_ || !KEY_) return { google: false, email: false }
+  try {
+    const r = await fetch(URL_ + '/auth/v1/settings', { headers: { apikey: KEY_ } })
+    const ext = (await r.json()).external ?? {}
+    return { google: !!ext.google, email: ext.email !== false }
+  } catch {
+    return { google: false, email: true }
+  }
+}

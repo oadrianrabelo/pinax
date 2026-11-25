@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FONTS, fontById, loadFont, stack, type Cat, type Role } from '../core/fonts'
 import { DEFAULTS, ERAS, PALETTES, SCRIPTS, activeScript, applyEra, setPrefs, surprise, usePrefs, type Prefs } from '../core/prefs'
-import { signInEmail, signInGoogle, signOut, syncNow, useSync } from '../core/sync'
+import { loginOptions, signInEmail, signInGoogle, signOut, syncNow, useSync } from '../core/sync'
 import { VERSION, applyUpdate, checkForUpdate, releases, useUpdate } from '../core/update'
 import { relative, type Item } from '../core/model'
 import { getAutostart, isDesktopApp, isNative, setAutostart } from '../core/native'
@@ -229,6 +229,8 @@ function Account() {
   const [email, setEmail] = useState('')
   const [sent, setSent] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [opts, setOpts] = useState<{ google: boolean; email: boolean } | null>(null)
+  useEffect(() => { loginOptions().then(setOpts) }, [])
   if (s.phase === 'off') return (
     <div className="aside">
       <p><b>A sincronização ainda não foi ligada nesta versão.</b> Tudo continua guardado neste aparelho.</p>
@@ -238,10 +240,10 @@ function Account() {
   if (!s.user) return (
     <>
       <p className="aside">Entre para ter a mesma rede no celular e no computador. Sem conta, tudo continua funcionando só neste aparelho.</p>
-      <p><Seal onClick={async () => { const { error } = await signInGoogle(); if (error) setErr(error.message) }}>entrar com Google</Seal></p>
+      {opts?.google && <p><Seal onClick={async () => { const { error } = await signInGoogle(); if (error) setErr(error.message) }}>entrar com Google</Seal></p>}
       {sent ? <p className="aside">✉ Mandei uma carta para <b>{email}</b>. Abra o link nela neste aparelho.</p> : (
         <form className="line-field" onSubmit={async (e) => { e.preventDefault(); const { error } = await signInEmail(email); if (error) setErr(error.message); else setSent(true) }}>
-          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="ou seu e-mail — mando um link mágico" />
+          <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder={opts?.google ? "ou seu e-mail — mando um link mágico" : "seu e-mail — mando um link mágico"} />
           <button className="ink" type="submit">enviar</button>
         </form>
       )}
