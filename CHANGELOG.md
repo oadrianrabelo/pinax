@@ -1,5 +1,15 @@
 # Diário de bordo
 
+## [0.5.0](https://github.com/oadrianrabelo/pinax/compare/v0.4.3...v0.5.0) (2026-11-25)
+
+### ✦ Novidades
+
+* **sync:** sincronização ligada — mesmos links no celular e no computador ([18e13d1](https://github.com/oadrianrabelo/pinax/commit/18e13d13f7bccb454fcc86bdb232ad565eb3e06b))
+
+### Correções
+
+* **sync:** prepara a sincronização para um projeto Supabase de verdade ([295e5d9](https://github.com/oadrianrabelo/pinax/commit/295e5d9321f26fc582eaa5a55989f1e8d357fdd2))
+
 ## [0.4.3](https://github.com/oadrianrabelo/pinax/compare/v0.4.2...v0.4.3) (2026-11-22)
 
 ### Correções
