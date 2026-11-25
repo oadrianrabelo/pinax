@@ -20,7 +20,7 @@ export interface Item {
   doneAt?: number
   loading?: boolean
   // foto, vídeo ou arquivo recebido pelo "Compartilhar" (fica guardado no aparelho)
-  media?: { path: string; mime: string; name: string; size: number }
+  media?: { path: string; mime: string; name: string; size: number; device?: string }
   // sincronização
   updatedAt?: number   // relógio do "último a escrever vence"
   deletedAt?: number   // lápide: apagar também precisa viajar entre aparelhos
@@ -78,6 +78,18 @@ export function canon(url: string) {
 }
 
 export const host = (url: string) => { if (!url) return ''; try { return new URL(url).hostname.replace(/^www\./, '') } catch { return url } }
+
+/** Identificador deste aparelho (para saber onde mora o arquivo de uma foto/vídeo). */
+export const DEVICE: string = (() => {
+  try {
+    let d = localStorage.getItem('rete:device')
+    if (!d) { d = crypto.randomUUID(); localStorage.setItem('rete:device', d) }
+    return d
+  } catch { return 'este' }
+})()
+
+/** O arquivo deste item está neste aparelho? (fotos e vídeos não viajam na sincronização, só a miniatura) */
+export const hasLocalFile = (i: Item) => !!i.media && (!i.media.device || i.media.device === DEVICE)
 
 /** De onde a coisa veio, para mostrar no lugar do domínio. */
 export function origin(i: Item) {

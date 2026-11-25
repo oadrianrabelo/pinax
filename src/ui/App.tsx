@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  KINDS, REMINDERS, canon, downloadIcs, extractUrl, guessKind, hash, host, isDue, label, loadPreview, mediaKind, origin, relative, store,
+  DEVICE, KINDS, REMINDERS, canon, downloadIcs, hasLocalFile, extractUrl, guessKind, hash, host, isDue, label, loadPreview, mediaKind, origin, relative, store,
   type Item, type Kind,
 } from '../core/model'
 import { ERAS, usePrefs } from '../core/prefs'
@@ -73,7 +73,7 @@ export default function App() {
 
   const remove = useCallback((id: string) => {
     const media = itemsRef.current.find((x) => x.id === id)?.media
-    if (media) removeMedia(media.path)
+    if (media && (!media.device || media.device === DEVICE)) removeMedia(media.path)
     patch(id, { deletedAt: Date.now() }); setOpen(null); say('Esquecido.')
   }, [patch, say])
 
@@ -99,7 +99,7 @@ export default function App() {
         const what = kind === 'imagem' ? 'Foto' : kind === 'video' ? 'Vídeo' : s.name
         await save({ id: crypto.randomUUID(), url: '', kind, createdAt: Date.now(),
           title: s.text?.trim() || (kind === 'imagem' || kind === 'video' ? `${what} de ${day}` : s.name),
-          image: s.thumb ?? undefined, media: { path: s.path, mime: s.mime, name: s.name, size: s.size } })
+          image: s.thumb ?? undefined, media: { path: s.path, mime: s.mime, name: s.name, size: s.size, device: DEVICE } })
         say(`${KINDS[kind].sigil} · ${kind === 'imagem' ? 'foto guardada' : kind === 'video' ? 'vídeo guardado' : 'arquivo guardado'}`)
       }
     }
@@ -422,7 +422,7 @@ function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string)
         <Spell as="h2" text={line} key={line + id} speed={0.6} />
         <p className="aside">Toda vez que você abre o app, uma estrela da rede vem até você.</p>
         <div className="row">
-          {(item.url || item.media) && <Seal onClick={() => openItem(item)}>abrir</Seal>}
+          {(item.url || hasLocalFile(item)) && <Seal onClick={() => openItem(item)}>abrir</Seal>}
           <button className="ink" onClick={next}>outra carta</button>
           <button className="ink" onClick={() => { onDone(item.id); next() }}>já fiz ✓</button>
         </div>
@@ -522,7 +522,8 @@ function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hou
           <p className="mono">{origin(i)}{i.price && ' · ' + i.price}</p>
           <h2>{label(i)}</h2>
           {i.description && <p className="desc">{i.description}</p>}
-          {(i.url || i.media) && <div className="row"><Seal onClick={() => openItem(i)}>{i.media ? { foto: 'ver a foto', vídeo: 'ver o vídeo', pdf: 'abrir o pdf', arquivo: 'abrir o arquivo' }[origin(i)] ?? 'abrir' : 'abrir o link'}</Seal></div>}
+          {i.media && !hasLocalFile(i) && <p className="aside">O arquivo original ficou no aparelho onde você compartilhou; aqui vem só a miniatura.</p>}
+          {(i.url || hasLocalFile(i)) && <div className="row"><Seal onClick={() => openItem(i)}>{i.media ? { foto: 'ver a foto', vídeo: 'ver o vídeo', pdf: 'abrir o pdf', arquivo: 'abrir o arquivo' }[origin(i)] ?? 'abrir' : 'abrir o link'}</Seal></div>}
 
           <p className="sentence">Isto é <Choice value={i.kind} onChange={(v) => patch({ kind: v })}
             options={KIND_IDS.map((x) => [x, <><span className="script">{KINDS[x].sigil}</span> {KINDS[x].one}</>])} sep="," />.</p>

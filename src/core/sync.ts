@@ -8,7 +8,8 @@ import { getPrefs, setPrefs } from './prefs'
 import { isNative, onDeepLink, openExternal } from './native'
 
 const URL_ = import.meta.env.VITE_SUPABASE_URL as string | undefined
-const KEY_ = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+// projetos novos chamam de "publishable key"; os antigos, de "anon key" — as duas são públicas por design (quem protege os dados é o RLS)
+const KEY_ = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined
 export const supabase = URL_ && KEY_
   ? createClient(URL_, KEY_, { auth: { flowType: 'pkce', detectSessionInUrl: !isNative, persistSession: true } })
   : null
