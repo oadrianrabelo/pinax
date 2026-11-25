@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.6.0](https://github.com/oadrianrabelo/pinax/compare/v0.5.0...v0.6.0) (2026-11-25)
+
+### ✦ Novidades
+
+* **android:** atualizar sem sair do app ([cefce60](https://github.com/oadrianrabelo/pinax/commit/cefce6080eeeeb57f30f4cbe858f0c2a44d1b143))
+
 ## [0.5.0](https://github.com/oadrianrabelo/pinax/compare/v0.4.3...v0.5.0) (2026-11-25)
 
 ### ✦ Novidades
