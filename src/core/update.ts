@@ -7,7 +7,7 @@ import { isDesktopApp, isNative, openExternal } from './native'
 export const VERSION: string = __APP_VERSION__
 const REPO = 'oadrianrabelo/pinax'
 
-type State = { phase: 'idle' | 'checking' | 'latest' | 'downloading' | 'ready' | 'available' | 'error'; version?: string; progress?: number }
+type State = { phase: 'idle' | 'checking' | 'latest' | 'downloading' | 'ready' | 'available' | 'installing' | 'permission' | 'error'; version?: string; progress?: number }
 let state: State = { phase: 'idle' }
 const subs = new Set<() => void>()
 const set = (s: State) => { state = s; subs.forEach((f) => f()) }
@@ -51,7 +51,26 @@ export async function applyUpdate() {
     const { relaunch } = await import('@tauri-apps/plugin-process')
     return relaunch()
   }
-  if (state.phase === 'available') return openExternal(`https://github.com/${REPO}/releases/latest`)
+  if (state.phase === 'available' || state.phase === 'permission' || state.phase === 'installing') {
+    const bridge = (window as unknown as { ReteShare?: { installUpdate?(v: string, repo: string): void } }).ReteShare
+    if (bridge?.installUpdate && state.version) {
+      // Android: o próprio app baixa e abre o instalador (progresso pelo evento 'rete-update')
+      set({ phase: 'downloading', version: state.version, progress: 0 })
+      return bridge.installUpdate(state.version, REPO)
+    }
+    return openExternal(`https://github.com/${REPO}/releases/latest`)
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('rete-update', (e) => {
+    const d = String((e as CustomEvent).detail ?? '')
+    const v = state.version
+    if (d.startsWith('progress:')) set({ phase: 'downloading', version: v, progress: Number(d.slice(9)) / 100 })
+    else if (d === 'installing') set({ phase: 'installing', version: v })
+    else if (d === 'permission') set({ phase: 'permission', version: v })
+    else if (d.startsWith('error:')) { set({ phase: 'available', version: v }); openExternal(`https://github.com/${REPO}/releases/latest`) }
+  })
 }
 
 /** Procura ao abrir e a cada 6 horas. */

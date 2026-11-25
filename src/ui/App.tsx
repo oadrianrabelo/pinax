@@ -293,9 +293,15 @@ export default function App() {
       }} />}
       {current && <Ficha item={current} hour={prefs.reminderHour} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
 
-      {(upd.phase === 'ready' || upd.phase === 'available') && (
-        <button className="ribbon" onClick={applyUpdate}>
-          {upd.phase === 'ready' ? <>versão {upd.version} pronta — <u>reiniciar</u></> : <>versão {upd.version} disponível — <u>baixar</u></>}
+      {['ready', 'available', 'downloading', 'installing', 'permission'].includes(upd.phase) && upd.version && (
+        <button className="ribbon" onClick={applyUpdate} disabled={upd.phase === 'downloading'}>
+          {{
+            ready: <>versão {upd.version} pronta — <u>reiniciar</u></>,
+            available: <>versão {upd.version} disponível — <u>atualizar</u></>,
+            downloading: <>baixando a {upd.version}… {Math.round((upd.progress ?? 0) * 100)}%</>,
+            installing: <>confirme “Atualizar” na tela do Android</>,
+            permission: <>permita “instalar apps” para o Pinax e <u>toque aqui de novo</u></>,
+          }[upd.phase as 'ready']}
         </button>
       )}
       {offer && (
