@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.7.0](https://github.com/oadrianrabelo/pinax/compare/v0.6.0...v0.7.0) (2026-11-26)
+
+### ✦ Novidades
+
+* títulos de vídeo de verdade e escolha do que fazer ao fechar a janela ([4de3714](https://github.com/oadrianrabelo/pinax/commit/4de37145b1a7eb70be2e1733b279ab0ab05d4bb3))
+
 ## [0.6.0](https://github.com/oadrianrabelo/pinax/compare/v0.5.0...v0.6.0) (2026-11-25)
 
 ### ✦ Novidades
