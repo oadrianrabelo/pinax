@@ -17,6 +17,14 @@ fn show_main(app: &AppHandle) {
     }
 }
 
+/// Fechar a janela esconde na bandeja (padrão, para os lembretes tocarem) ou fecha de vez.
+static CLOSE_TO_TRAY: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(true);
+
+#[tauri::command]
+fn set_close_to_tray(value: bool) {
+    CLOSE_TO_TRAY.store(value, std::sync::atomic::Ordering::Relaxed);
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     #[allow(unused_mut)]
@@ -35,6 +43,7 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .plugin(tauri_plugin_process::init())
+        .invoke_handler(tauri::generate_handler![set_close_to_tray])
         .setup(|app| {
             #[cfg(desktop)]
             {
@@ -81,11 +90,15 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|_w, _e| {
-            // Fechar a janela só esconde (no desktop); "Sair de vez" fica na bandeja
+            // Fechar a janela esconde na bandeja ou fecha de vez, conforme o Ateliê
             #[cfg(desktop)]
             if let WindowEvent::CloseRequested { api, .. } = _e {
-                let _ = _w.hide();
-                api.prevent_close();
+                if CLOSE_TO_TRAY.load(std::sync::atomic::Ordering::Relaxed) {
+                    let _ = _w.hide();
+                    api.prevent_close();
+                } else {
+                    _w.app_handle().exit(0);
+                }
             }
         })
         .run(tauri::generate_context!())

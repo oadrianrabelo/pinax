@@ -219,6 +219,10 @@ function Craft() {
         <p className="sentence">O Pinax {<Choice value={auto} onChange={async (v) => { await setAutostart(v); setAuto(v) }} options={[[true, 'abre junto com o computador'], [false, 'só abre quando eu mandar']]} sep="/" />}.
           <span className="aside block">Aberto (mesmo escondido na bandeja), ele consegue tocar os lembretes na hora.</span></p>
       )}
+      {isDesktopApp && (
+        <p className="sentence">Ao fechar a janela, o Pinax {<Choice value={p.closeToTray} onChange={(v) => setPrefs({ closeToTray: v })} options={[[true, 'se esconde na bandeja'], [false, 'fecha de vez']]} sep="/" />}.
+          <span className="aside block">{p.closeToTray ? 'Escondido, ele continua tocando os lembretes. Para sair de verdade: botão direito no ícone da bandeja → Sair de vez.' : 'Fechado, os lembretes do computador só aparecem quando você abrir o Pinax de novo. No celular, nada muda.'}</span></p>
+      )}
       <p><button className="ink danger" onClick={() => confirm('Voltar tudo ao padrão?') && setPrefs({ ...DEFAULTS })}>restaurar o padrão</button></p>
     </>
   )

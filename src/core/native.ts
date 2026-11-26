@@ -43,6 +43,21 @@ export async function fetchPreview(url: string): Promise<Preview | null> {
   }
 }
 
+/** GET de JSON — no app nativo vai pelo Rust (sem CORS); no navegador, pelo fetch comum. */
+export async function fetchJson(url: string): Promise<any | null> {
+  try {
+    if (isNative) {
+      const { fetch } = await import('@tauri-apps/plugin-http')
+      const r = await fetch(url, { connectTimeout: 8000, headers: { accept: 'application/json' } })
+      return r.ok ? await r.json() : null
+    }
+    const r = await fetch(url)
+    return r.ok ? await r.json() : null
+  } catch {
+    return null
+  }
+}
+
 // ——— notificações ———
 let permitted: boolean | null = null
 export async function ensureNotifyPermission() {
@@ -155,4 +170,10 @@ export function watchSystemBars() {
   }
   window.addEventListener('rete-insets', apply)
   apply()
+}
+
+/** Computador: fechar a janela esconde na bandeja (true) ou fecha de vez (false). */
+export async function setCloseToTray(value: boolean) {
+  if (!isDesktopApp) return
+  try { const { invoke } = await import('@tauri-apps/api/core'); await invoke('set_close_to_tray', { value }) } catch {}
 }
