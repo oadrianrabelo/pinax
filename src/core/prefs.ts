@@ -238,6 +238,7 @@ export interface Prefs {
   astrolabe: boolean
   italicTitle: boolean
   cardFont: 'display' | 'body'
+  closeToTray: boolean      // computador: fechar a janela esconde na bandeja
   reminderHour: number
   title: string
   subtitle: string
@@ -248,7 +249,7 @@ export const DEFAULTS: Prefs = {
   era: 'delfos', palette: 'delfos', accent: null,
   display: 'instrument-serif', body: 'alegreya', mono: 'xanh-mono', sigil: 'gfs-didot', script: 'era',
   scale: 1, tilt: 0, density: 'confortável', radius: 4,
-  grain: true, motion: true, oracle: true, astrolabe: true, italicTitle: true, cardFont: 'display',
+  grain: true, motion: true, oracle: true, astrolabe: true, italicTitle: true, cardFont: 'display', closeToTray: true,
   reminderHour: 9, title: 'Pinax', subtitle: 'πίναξ · tabuinha, lista, catálogo', updatedAt: 0,
 }
 

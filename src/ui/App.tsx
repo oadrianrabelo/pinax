@@ -1,12 +1,12 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  DEVICE, KINDS, REMINDERS, canon, downloadIcs, hasLocalFile, extractUrl, guessKind, hash, host, isDue, label, loadPreview, mediaKind, origin, relative, store,
+  DEVICE, KINDS, REMINDERS, canon, downloadIcs, hasLocalFile, extractUrl, guessKind, hash, host, isDue, label, loadPreview, mediaKind, needsTitle, origin, relative, store,
   type Item, type Kind,
 } from '../core/model'
 import { ERAS, usePrefs } from '../core/prefs'
 import { initSync, scheduleSync, useSync } from '../core/sync'
 import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from '../core/update'
-import { watchSystemBars, captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
+import { watchSystemBars, setCloseToTray, captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
 import { Spell, greekNumeral } from './spell'
 import { Choice, Notes, Scripts, Seal, useSheet } from './bits'
 import Atelier from './Atelier'
@@ -116,6 +116,15 @@ export default function App() {
       const shared = extractUrl(q.get('url')) ?? extractUrl(q.get('text')) ?? extractUrl(q.get('title'))
       if (shared) { history.replaceState(null, '', '/'); add(shared) }
       xs.filter((x) => x.loading).forEach((x) => loadPreview(x.url).then(({ type: _t, ...m }) => save({ ...x, ...m, loading: false })))
+      // conserta itens antigos que ficaram só com o domínio no lugar do título (ex.: "youtu.be")
+      ;(async () => {
+        for (const x of xs.filter(needsTitle).slice(0, 40)) {
+          const { type: _t, ...m } = await loadPreview(x.url)
+          const cur = itemsRef.current.find((y) => y.id === x.id)
+          if (cur && m.title && m.title !== cur.title) save({ ...cur, title: m.title, site: m.site || cur.site, image: cur.image || m.image })
+          await new Promise((r) => setTimeout(r, 400))
+        }
+      })()
       onShare((shared) => { receive(shared) })
       // no celular, garante que todos os alarmes futuros estão agendados no sistema
       if (isMobile) xs.filter((x) => x.remindAt && !x.doneAt && x.remindAt > Date.now())
@@ -133,6 +142,7 @@ export default function App() {
   }, []) // eslint-disable-line
 
   useEffect(() => { if (prefs.updatedAt) scheduleSync() }, [prefs.updatedAt])
+  useEffect(() => { setCloseToTray(prefs.closeToTray) }, [prefs.closeToTray])
 
   // Botão voltar (Android): fecha uma camada por vez; na tela inicial, toque duas vezes para sair
   const ui = useRef({ news, open, atelier, offer, searching, query, filter, view })

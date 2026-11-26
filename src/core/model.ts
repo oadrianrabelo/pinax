@@ -1,5 +1,5 @@
 import { openDB } from 'idb'
-import { fetchPreview } from './native'
+import { fetchJson, fetchPreview } from './native'
 
 export type Kind = 'compra' | 'leitura' | 'video' | 'imagem' | 'colecao' | 'outro'
 
@@ -167,9 +167,32 @@ export function downloadIcs(i: Item) {
 }
 
 // ——— Prévia (thumbnail, título, preço) ———
+// Serviços oficiais de "oEmbed": devolvem título, autor e miniatura sem precisar ler a página
+// (o YouTube, por exemplo, costuma responder a programas com uma tela de consentimento sem título).
+const OEMBED: [RegExp, (u: string) => string, string][] = [
+  [/(youtube\.com|youtu\.be)\//i, (u) => 'https://www.youtube.com/oembed?format=json&url=' + encodeURIComponent(u), 'YouTube'],
+  [/vimeo\.com\//i, (u) => 'https://vimeo.com/api/oembed.json?url=' + encodeURIComponent(u), 'Vimeo'],
+  [/tiktok\.com\//i, (u) => 'https://www.tiktok.com/oembed?url=' + encodeURIComponent(u), 'TikTok'],
+  [/open\.spotify\.com\//i, (u) => 'https://open.spotify.com/oembed?url=' + encodeURIComponent(u), 'Spotify'],
+  [/soundcloud\.com\//i, (u) => 'https://soundcloud.com/oembed?format=json&url=' + encodeURIComponent(u), 'SoundCloud'],
+]
+
+async function oembed(url: string): Promise<Partial<Item> | null> {
+  const hit = OEMBED.find(([re]) => re.test(url))
+  if (!hit) return null
+  const j = await fetchJson(hit[1](url))
+  if (!j?.title) return null
+  return {
+    title: j.title,
+    site: j.author_name ? `${hit[2]} · ${j.author_name}` : hit[2],
+    image: j.thumbnail_url,
+  }
+}
+
 export async function loadPreview(url: string): Promise<Partial<Item> & { type?: string }> {
-  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/)|youtu\.be\/)([\w-]{11})/)?.[1]
-  let data: any = (await fetchPreview(url)) ?? {}
+  const yt = url.match(/(?:youtube\.com\/(?:watch\?v=|shorts\/|embed\/|live\/)|youtu\.be\/)([\w-]{11})/)?.[1]
+  const oe = await oembed(url)
+  let data: any = oe ? { ...oe } : (await fetchPreview(url)) ?? {}
   if (!data.title || !data.image) {
     try {
       const r = await fetch('https://api.microlink.io/?url=' + encodeURIComponent(url))
@@ -184,3 +207,6 @@ export async function loadPreview(url: string): Promise<Partial<Item> & { type?:
   if (yt) data.image = `https://i.ytimg.com/vi/${yt}/hqdefault.jpg`
   return data
 }
+
+/** Item salvo sem título de verdade (só o domínio no lugar) — vale tentar buscar de novo. */
+export const needsTitle = (i: Item) => !!i.url && !i.media && (!i.title || i.title === host(i.url) || /^(youtu\.be|youtube\.com|www\.youtube\.com)$/i.test(i.title))
