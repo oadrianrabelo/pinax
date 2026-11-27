@@ -6,7 +6,7 @@ import {
 import { ERAS, usePrefs } from '../core/prefs'
 import { initSync, scheduleSync, useSync } from '../core/sync'
 import { applyUpdate, justUpdated, startUpdater, useUpdate, type Release } from '../core/update'
-import { watchSystemBars, setCloseToTray, captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
+import { watchSystemBars, setCloseToTray, shareOut, copyText, captureLinks, getAutostart, isDesktopApp, isMobile, isNative, notify, onDeepLink, onShare, openItem, readClipboard, removeMedia, scheduleReminder, setAutostart, type Shared } from '../core/native'
 import { Spell, greekNumeral } from './spell'
 import { Choice, Notes, Scripts, Seal, useSheet } from './bits'
 import Atelier from './Atelier'
@@ -34,6 +34,11 @@ export default function App() {
   itemsRef.current = items
   const era = ERAS[prefs.era]
 
+  const send = useCallback(async (i: Item) => {
+    const r = await shareOut({ title: label(i), url: i.url || undefined, text: i.url ? undefined : i.description, path: hasLocalFile(i) ? i.media!.path : undefined })
+    if (r === 'copied') say('copiado — é só colar onde quiser')
+    else if (r === 'failed') say('não consegui compartilhar')
+  }, [])
   const pickFilter = useCallback((k: Kind | null) => { setFilter(k); setView('agora') }, [])
   const say = useCallback((t: string) => { setToast(t); setTimeout(() => setToast((c) => (c === t ? null : c)), 2800) }, [])
 
@@ -254,7 +259,7 @@ export default function App() {
       </header>
 
       {ready && prefs.oracle && view === 'agora' && pending.length > 0 && (
-        <Oracle items={pending} onOpen={setOpen} onDone={(id) => patch(id, { doneAt: Date.now() })} />
+        <Oracle items={pending} onOpen={setOpen} onSend={send} onDone={(id) => patch(id, { doneAt: Date.now() })} />
       )}
 
       <section className="catalogue">
@@ -301,7 +306,7 @@ export default function App() {
         for (const x of xs) await store.put(store.touch(x))
         setItems(await store.all()); scheduleSync(); say(`${xs.length} itens importados`)
       }} />}
-      {current && <Ficha item={current} hour={prefs.reminderHour} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
+      {current && <Ficha item={current} onSend={send} hour={prefs.reminderHour} onClose={() => setOpen(null)} patch={(p) => patch(current.id, p)} remove={() => remove(current.id)} say={say} />}
 
       {['ready', 'available', 'downloading', 'installing', 'permission'].includes(upd.phase) && upd.version && (
         <button className="ribbon" onClick={applyUpdate} disabled={upd.phase === 'downloading'}>
@@ -414,7 +419,7 @@ const Astrolabe = memo(function Astrolabe({ items, filter, counts, dueCount, onF
 })
 
 // ——— Oráculo: a cada abertura, uma carta diferente ———
-function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string) => void; onDone: (id: string) => void }) {
+function Oracle({ items, onOpen, onSend, onDone }: { items: Item[]; onOpen: (id: string) => void; onSend: (i: Item) => void; onDone: (id: string) => void }) {
   const pick = useCallback((exclude?: string) => {
     const due = items.filter(isDue)
     const pool = (due.length ? due : items).filter((i) => i.id !== exclude)
@@ -440,6 +445,7 @@ function Oracle({ items, onOpen, onDone }: { items: Item[]; onOpen: (id: string)
         <div className="row">
           {(item.url || hasLocalFile(item)) && <Seal onClick={() => openItem(item)}>abrir</Seal>}
           <button className="ink" onClick={next}>outra carta</button>
+          <button className="ink" onClick={() => onSend(item)}>enviar</button>
           <button className="ink" onClick={() => { onDone(item.id); next() }}>já fiz ✓</button>
         </div>
       </div>
@@ -521,7 +527,7 @@ function Quill({ onAdd }: { onAdd: (url: string) => void }) {
 }
 
 // ——— Ficha do item, escrita em frases ———
-function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
+function Ficha({ item: i, onSend, hour, onClose, patch, remove, say }: { item: Item; onSend: (i: Item) => void; hour: number; onClose: () => void; patch: (p: Partial<Item>) => void; remove: () => void; say: (t: string) => void }) {
   const [note, setNote] = useState(i.note ?? '')
   const sheet = useSheet<HTMLElement>(onClose)
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose(); addEventListener('keydown', k); return () => removeEventListener('keydown', k) }, [onClose])
@@ -539,7 +545,11 @@ function Ficha({ item: i, hour, onClose, patch, remove, say }: { item: Item; hou
           <h2>{label(i)}</h2>
           {i.description && <p className="desc">{i.description}</p>}
           {i.media && !hasLocalFile(i) && <p className="aside">O arquivo original ficou no aparelho onde você compartilhou; aqui vem só a miniatura.</p>}
-          {(i.url || hasLocalFile(i)) && <div className="row"><Seal onClick={() => openItem(i)}>{i.media ? { foto: 'ver a foto', vídeo: 'ver o vídeo', pdf: 'abrir o pdf', arquivo: 'abrir o arquivo' }[origin(i)] ?? 'abrir' : 'abrir o link'}</Seal></div>}
+          <div className="row">
+            {(i.url || hasLocalFile(i)) && <Seal onClick={() => openItem(i)}>{i.media ? { foto: 'ver a foto', vídeo: 'ver o vídeo', pdf: 'abrir o pdf', arquivo: 'abrir o arquivo' }[origin(i)] ?? 'abrir' : 'abrir o link'}</Seal>}
+            <button className="ink" onClick={() => onSend(i)}>{i.media && hasLocalFile(i) ? 'enviar o arquivo' : 'enviar'} ↗</button>
+            {i.url && <button className="ink" onClick={async () => say((await copyText(i.url)) ? 'link copiado' : 'não consegui copiar')}>copiar link</button>}
+          </div>
 
           <p className="sentence">Isto é <Choice value={i.kind} onChange={(v) => patch({ kind: v })}
             options={KIND_IDS.map((x) => [x, <><span className="script">{KINDS[x].sigil}</span> {KINDS[x].one}</>])} sep="," />.</p>

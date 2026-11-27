@@ -128,7 +128,7 @@ export type Shared =
   | { type: 'text'; text: string; subject?: string }
   | { type: 'file'; path: string; mime: string; name: string; size: number; thumb: string | null; text?: string }
 
-type Bridge = { take(): string; open(path: string): void; remove(path: string): void; insets?(): string; bars?(dark: boolean): void }
+type Bridge = { take(): string; open(path: string): void; remove(path: string): void; insets?(): string; bars?(dark: boolean): void; share?(text: string, subject: string, path: string): void }
 const bridge = () => (window as unknown as { ReteShare?: Bridge }).ReteShare
 
 /** Entrega o que outros apps compartilharam com o Pinax — ao abrir e sempre que chegar algo novo. */
@@ -176,4 +176,29 @@ export function watchSystemBars() {
 export async function setCloseToTray(value: boolean) {
   if (!isDesktopApp) return
   try { const { invoke } = await import('@tauri-apps/api/core'); await invoke('set_close_to_tray', { value }) } catch {}
+}
+
+/** Copia texto para a área de transferência (no app nativo, pelo sistema). */
+export async function copyText(text: string) {
+  try {
+    if (isNative) { const { writeText } = await import('@tauri-apps/plugin-clipboard-manager'); await writeText(text); return true }
+    await navigator.clipboard.writeText(text); return true
+  } catch { return false }
+}
+
+/**
+ * Envia um item para alguém: no celular, o menu "Compartilhar" do Android (com o arquivo,
+ * se for foto/vídeo deste aparelho); no computador, o compartilhamento do sistema quando
+ * existe — senão, copia título e link.
+ */
+export async function shareOut(o: { title: string; url?: string; text?: string; path?: string }): Promise<'shared' | 'copied' | 'failed'> {
+  const body = [o.title, o.text, o.url].filter(Boolean).join('\n')
+  const b = bridge()
+  if (b?.share) { b.share(body, o.title, o.path ?? ''); return 'shared' }
+  const nav = navigator as Navigator & { share?: (d: ShareData) => Promise<void> }
+  if (nav.share && !o.path) {
+    try { await nav.share({ title: o.title, text: o.text ? `${o.title}\n${o.text}` : o.title, url: o.url }); return 'shared' }
+    catch (e) { if ((e as Error)?.name === 'AbortError') return 'shared' }
+  }
+  return (await copyText(body)) ? 'copied' : 'failed'
 }
