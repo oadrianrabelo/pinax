@@ -1,5 +1,11 @@
 # Diário de bordo
 
+## [0.8.0](https://github.com/oadrianrabelo/pinax/compare/v0.7.0...v0.8.0) (2026-11-27)
+
+### ✦ Novidades
+
+* enviar um item para alguém ([0fbc004](https://github.com/oadrianrabelo/pinax/commit/0fbc004bb31aa4aafb5af64ba6e6ce40e2abe9f5))
+
 ## [0.7.0](https://github.com/oadrianrabelo/pinax/compare/v0.6.0...v0.7.0) (2026-11-26)
 
 ### ✦ Novidades
