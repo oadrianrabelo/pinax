@@ -7,6 +7,8 @@
 package __PACKAGE__
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ComponentName
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -237,6 +239,26 @@ object ReteShare {
         }
     }
 
+    private fun shareOut(a: Activity, text: String, subject: String, path: String) {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+        if (path.isNotEmpty()) {
+            val f = File(path)
+            if (f.exists() && inside(a, f)) {
+                val uri = FileProvider.getUriForFile(a, a.packageName + ".rete.files", f)
+                send.type = MimeTypeMap.getSingleton().getMimeTypeFromExtension(f.extension) ?: "*/*"
+                send.putExtra(Intent.EXTRA_STREAM, uri)
+                send.clipData = ClipData.newRawUri("", uri)
+                send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+        }
+        if (text.isNotEmpty()) send.putExtra(Intent.EXTRA_TEXT, text)
+        if (subject.isNotEmpty()) send.putExtra(Intent.EXTRA_SUBJECT, subject)
+        val chooser = Intent.createChooser(send, "Enviar")
+        // o próprio Pinax fica fora da lista (não faz sentido compartilhar com ele mesmo)
+        if (Build.VERSION.SDK_INT >= 24) chooser.putExtra(Intent.EXTRA_EXCLUDE_COMPONENTS, arrayOf(ComponentName(a, a.javaClass)))
+        try { a.startActivity(chooser) } catch (e: Exception) { }
+    }
+
     private fun inside(a: Activity, f: File) = f.canonicalPath.startsWith(File(a.filesDir, "shared").canonicalPath)
 
     private fun openFile(a: Activity, path: String) {
@@ -281,6 +303,13 @@ object ReteShare {
         fun installUpdate(version: String, repo: String) {
             val a = activity ?: return
             io.execute { downloadAndInstall(a, version, repo) }
+        }
+
+        /** Abre o menu "Compartilhar" do Android com o texto (e o arquivo, se for foto/vídeo guardado). */
+        @JavascriptInterface
+        fun share(text: String, subject: String, path: String) {
+            val a = activity ?: return
+            a.runOnUiThread { shareOut(a, text, subject, path) }
         }
 
         /** Apaga o arquivo de um item esquecido. */
